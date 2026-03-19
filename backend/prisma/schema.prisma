@@ -1,0 +1,279 @@
+// Prisma Schema for MICE Hotel Booking System
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENT
+  MANAGER
+  ADMIN
+}
+
+enum BookingStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum SeatingLayoutType {
+  THEATER
+  CLASSROOM
+  U_SHAPE
+  BANQUET
+  COCKTAIL
+  BOARDROOM
+}
+
+enum PricingType {
+  FIXED
+  PER_PERSON
+  PER_DAY
+  PER_HOUR
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  role          UserRole  @default(CLIENT)
+  companyName   String?   @map("company_name")
+  firstName     String?   @map("first_name")
+  lastName      String?   @map("last_name")
+  phone         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  bookings      Booking[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Hotel {
+  id            String    @id @default(uuid())
+  name          String
+  address       String?
+  city          String?
+  country       String?
+  contactEmail  String?   @map("contact_email")
+  contactPhone  String?   @map("contact_phone")
+  description   String?
+  settings      Json      @default("{}")
+  logoUrl       String?   @map("logo_url")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  halls               Hall[]
+  cateringCategories  CateringCategory[]
+  serviceCategories   ServiceCategory[]
+  bookings            Booking[]
+
+  @@map("hotels")
+}
+
+model Hall {
+  id                String    @id @default(uuid())
+  hotelId           String    @map("hotel_id")
+  name              String
+  maxCapacity       Int       @map("max_capacity")
+  areaSqm           Decimal?  @map("area_sqm") @db.Decimal(10, 2)
+  basePricePerDay   Decimal   @map("base_price_per_day") @db.Decimal(10, 2)
+  description       String?
+  amenities         Json      @default("[]")
+  images            Json      @default("[]")
+  floor             Int?
+  naturalLight      Boolean   @default(false) @map("natural_light")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  seatingLayouts    SeatingLayout[]
+  bookingHalls      BookingHall[]
+
+  @@index([hotelId])
+  @@index([isActive])
+  @@map("halls")
+}
+
+model SeatingLayout {
+  id              String              @id @default(uuid())
+  hallId          String              @map("hall_id")
+  layoutType      SeatingLayoutType   @map("layout_type")
+  capacity        Int
+  priceModifier   Decimal             @default(0) @map("price_modifier") @db.Decimal(10, 2)
+  description     String?
+  imageUrl        String?             @map("image_url")
+
+  hall            Hall                @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  bookingHalls    BookingHall[]
+
+  @@unique([hallId, layoutType])
+  @@index([hallId])
+  @@map("seating_layouts")
+}
+
+model CateringCategory {
+  id          String          @id @default(uuid())
+  hotelId     String          @map("hotel_id")
+  name        String
+  description String?
+  sortOrder   Int             @default(0) @map("sort_order")
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  hotel       Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  items       CateringItem[]
+
+  @@index([hotelId])
+  @@map("catering_categories")
+}
+
+model CateringItem {
+  id              String            @id @default(uuid())
+  categoryId      String            @map("category_id")
+  name            String
+  description     String?
+  pricePerPerson  Decimal           @map("price_per_person") @db.Decimal(10, 2)
+  minPersons      Int               @default(1) @map("min_persons")
+  dietaryOptions  Json              @default("[]") @map("dietary_options")
+  imageUrl        String?           @map("image_url")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  category        CateringCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  bookingCatering BookingCatering[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("catering_items")
+}
+
+model ServiceCategory {
+  id          String    @id @default(uuid())
+  hotelId     String    @map("hotel_id")
+  name        String
+  description String?
+  sortOrder   Int       @default(0) @map("sort_order")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  hotel       Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  services    Service[]
+
+  @@index([hotelId])
+  @@map("service_categories")
+}
+
+model Service {
+  id              String            @id @default(uuid())
+  categoryId      String            @map("category_id")
+  name            String
+  description     String?
+  pricingType     PricingType       @map("pricing_type")
+  basePrice       Decimal           @map("base_price") @db.Decimal(10, 2)
+  unit            String?
+  imageUrl        String?           @map("image_url")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  category        ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  bookingServices BookingService[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("services")
+}
+
+model Booking {
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  hotelId         String          @map("hotel_id")
+  status          BookingStatus   @default(DRAFT)
+  eventName       String?         @map("event_name")
+  eventFormat     String?         @map("event_format")
+  startDate       DateTime        @map("start_date") @db.Date
+  endDate         DateTime        @map("end_date") @db.Date
+  numGuests       Int             @map("num_guests")
+  totalPrice      Decimal?        @map("total_price") @db.Decimal(10, 2)
+  notes           String?
+  pdfUrl          String?         @map("pdf_url")
+  submittedAt     DateTime?       @map("submitted_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotel           Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  bookingHalls    BookingHall[]
+  bookingCatering BookingCatering[]
+  bookingServices BookingService[]
+
+  @@index([userId])
+  @@index([hotelId])
+  @@index([status])
+  @@index([startDate])
+  @@map("bookings")
+}
+
+model BookingHall {
+  id              String          @id @default(uuid())
+  bookingId       String          @map("booking_id")
+  hallId          String          @map("hall_id")
+  seatingLayoutId String?         @map("seating_layout_id")
+  bookingDate     DateTime        @map("booking_date") @db.Date
+  price           Decimal         @db.Decimal(10, 2)
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hall            Hall            @relation(fields: [hallId], references: [id], onDelete: Cascade)
+  seatingLayout   SeatingLayout?  @relation(fields: [seatingLayoutId], references: [id], onDelete: SetNull)
+
+  @@unique([hallId, bookingDate])
+  @@index([bookingId])
+  @@index([hallId, bookingDate])
+  @@map("booking_halls")
+}
+
+model BookingCatering {
+  id              String        @id @default(uuid())
+  bookingId       String        @map("booking_id")
+  cateringItemId  String        @map("catering_item_id")
+  quantity        Int
+  serviceDate     DateTime?     @map("service_date") @db.Date
+  price           Decimal       @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  cateringItem    CateringItem  @relation(fields: [cateringItemId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_catering")
+}
+
+model BookingService {
+  id          String    @id @default(uuid())
+  bookingId   String    @map("booking_id")
+  serviceId   String    @map("service_id")
+  quantity    Int
+  price       Decimal   @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  service     Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_services")
+}
