@@ -16,7 +16,8 @@ router.post('/register', async (req, res) => {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      res.status(400).json({ error: 'User already exists' });
+      return;
     }
 
     // Hash password and create user
@@ -60,13 +61,15 @@ router.post('/login', async (req, res) => {
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     // Check password
     const isValidPassword = await comparePassword(password, user.passwordHash);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     // Generate token
@@ -107,13 +110,45 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     res.json(user);
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// Update user profile
+router.put('/profile', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { firstName, lastName, companyName, phone } = req.body;
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        firstName,
+        lastName,
+        companyName,
+        phone,
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        companyName: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+      },
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

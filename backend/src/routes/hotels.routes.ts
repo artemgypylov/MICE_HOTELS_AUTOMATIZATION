@@ -5,7 +5,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Get all hotels
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     const hotels = await prisma.hotel.findMany({
       where: { isActive: true },
@@ -44,7 +44,8 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!hotel) {
-      return res.status(404).json({ error: 'Hotel not found' });
+      res.status(404).json({ error: 'Hotel not found' });
+      return;
     }
 
     res.json(hotel);
