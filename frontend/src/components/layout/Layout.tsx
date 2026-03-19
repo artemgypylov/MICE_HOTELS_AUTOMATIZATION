@@ -29,6 +29,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button color="inherit" onClick={() => navigate('/dashboard')}>
                 My Bookings
               </Button>
+              <Button color="inherit" onClick={() => navigate('/profile')}>
+                Profile
+              </Button>
               <Button color="inherit" onClick={handleLogout}>
                 Logout
               </Button>

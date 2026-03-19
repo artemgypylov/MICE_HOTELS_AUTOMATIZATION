@@ -5,6 +5,7 @@ import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import WizardPage from './pages/WizardPage';
 import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -21,6 +22,10 @@ function App() {
           <Route
             path="/dashboard"
             element={isAuthenticated ? <DashboardPage /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/profile"
+            element={isAuthenticated ? <ProfilePage /> : <Navigate to="/" />}
           />
         </Routes>
       </Container>
