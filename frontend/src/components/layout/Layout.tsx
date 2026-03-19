@@ -10,9 +10,12 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const isAuthenticated = !!localStorage.getItem('token');
+  const userRole = localStorage.getItem('userRole');
+  const isAdmin = userRole === 'MANAGER' || userRole === 'ADMIN';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
     navigate('/');
   };
 
@@ -29,6 +32,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button color="inherit" onClick={() => navigate('/dashboard')}>
                 My Bookings
               </Button>
+              {isAdmin && (
+                <Button color="inherit" onClick={() => navigate('/admin/bookings')}>
+                  Admin
+                </Button>
+              )}
               <Button color="inherit" onClick={() => navigate('/profile')}>
                 Profile
               </Button>

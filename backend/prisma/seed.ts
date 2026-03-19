@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // Create a test user
+  // Create a test client user
   const hashedPassword = await hashPassword('password123');
   const user = await prisma.user.upsert({
     where: { email: 'client@example.com' },
@@ -21,7 +21,41 @@ async function main() {
       phone: '+1234567890',
     },
   });
-  console.log('✓ Created user:', user.email);
+  console.log('✓ Created client user:', user.email);
+
+  // Create a manager user
+  const managerPassword = await hashPassword('manager123');
+  const manager = await prisma.user.upsert({
+    where: { email: 'manager@example.com' },
+    update: {},
+    create: {
+      email: 'manager@example.com',
+      passwordHash: managerPassword,
+      role: 'MANAGER',
+      companyName: 'Grand Business Hotel',
+      firstName: 'Alice',
+      lastName: 'Manager',
+      phone: '+1234567891',
+    },
+  });
+  console.log('✓ Created manager user:', manager.email);
+
+  // Create an admin user
+  const adminPassword = await hashPassword('admin123');
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
+    create: {
+      email: 'admin@example.com',
+      passwordHash: adminPassword,
+      role: 'ADMIN',
+      companyName: 'System Admin',
+      firstName: 'Bob',
+      lastName: 'Administrator',
+      phone: '+1234567892',
+    },
+  });
+  console.log('✓ Created admin user:', admin.email);
 
   // Create a hotel
   const hotel = await prisma.hotel.upsert({
@@ -325,6 +359,23 @@ async function main() {
   console.log('✓ Created services');
 
   console.log('🎉 Database seed completed successfully!');
+  console.log('\n📋 Test Credentials:');
+  console.log('┌─────────────────────────────────────────────────────┐');
+  console.log('│ CLIENT USER:                                        │');
+  console.log('│   Email: client@example.com                         │');
+  console.log('│   Password: password123                             │');
+  console.log('│   Role: CLIENT                                      │');
+  console.log('├─────────────────────────────────────────────────────┤');
+  console.log('│ MANAGER USER:                                       │');
+  console.log('│   Email: manager@example.com                        │');
+  console.log('│   Password: manager123                              │');
+  console.log('│   Role: MANAGER                                     │');
+  console.log('├─────────────────────────────────────────────────────┤');
+  console.log('│ ADMIN USER:                                         │');
+  console.log('│   Email: admin@example.com                          │');
+  console.log('│   Password: admin123                                │');
+  console.log('│   Role: ADMIN                                       │');
+  console.log('└─────────────────────────────────────────────────────┘');
 }
 
 main()

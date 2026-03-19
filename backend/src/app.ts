@@ -13,6 +13,7 @@ import hallsRoutes from './routes/halls.routes';
 import cateringRoutes from './routes/catering.routes';
 import servicesRoutes from './routes/services.routes';
 import bookingsRoutes from './routes/bookings.routes';
+import adminRoutes from './routes/admin.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,6 +39,7 @@ app.use('/api/halls', hallsRoutes);
 app.use('/api/catering', cateringRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/bookings', bookingsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
