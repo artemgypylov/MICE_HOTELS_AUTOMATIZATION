@@ -21,7 +21,8 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!item) {
-      return res.status(404).json({ error: 'Catering item not found' });
+      res.status(404).json({ error: 'Catering item not found' });
+      return;
     }
 
     res.json(item);
