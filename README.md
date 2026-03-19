@@ -36,6 +36,12 @@ A modern B2B web application that allows corporate clients and event managers to
 - React Query (TanStack Query)
 - Vite
 
+**Mobile Apps (iOS & Android):**
+- React Native with Expo
+- TypeScript
+- React Navigation
+- Cross-platform (iOS & Android)
+
 **DevOps:**
 - Docker & Docker Compose
 - PostgreSQL container
@@ -68,6 +74,31 @@ A modern B2B web application that allows corporate clients and event managers to
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3000
    - API Health Check: http://localhost:3000/health
+
+## 📱 Mobile Apps (iOS & Android)
+
+The project includes native mobile apps built with React Native and Expo.
+
+### Quick Start for Mobile
+
+```bash
+cd mobile
+npm install
+npm start
+```
+
+**Scan the QR code** with:
+- iOS: Camera app (then opens in Expo Go)
+- Android: Expo Go app
+
+For detailed mobile setup instructions, see [mobile/README.md](./mobile/README.md)
+
+### Mobile App Features
+- Native iOS and Android support
+- User authentication
+- Hotel and hall browsing
+- Booking management
+- Real-time API integration
 
 ## 🔧 Manual Setup (Without Docker)
 
@@ -226,6 +257,29 @@ frontend/src/
 └── main.tsx
 ```
 
+## 📱 Mobile Structure
+
+```
+mobile/src/
+├── screens/
+│   ├── LoginScreen.tsx
+│   ├── RegisterScreen.tsx
+│   ├── HomeScreen.tsx
+│   ├── HotelsScreen.tsx
+│   ├── HotelDetailScreen.tsx
+│   └── MyBookingsScreen.tsx
+├── navigation/
+│   └── index.tsx
+├── contexts/
+│   └── AuthContext.tsx
+├── services/
+│   └── api.ts
+├── types/
+│   └── index.ts
+└── utils/
+    └── constants.ts
+```
+
 ## 🔧 Backend Structure
 
 ```
@@ -308,7 +362,7 @@ backend/src/
 - Calendar view for availability
 - Admin panel for hotel managers
 - Analytics dashboard
-- Mobile app
+- ✅ **Mobile apps (iOS & Android) - IMPLEMENTED**
 - Multi-language support
 
 ## 🐛 Troubleshooting
