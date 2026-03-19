@@ -9,7 +9,7 @@
 - **Form Management**: React Hook Form with Zod validation
 - **Routing**: React Router v6
 - **Date Handling**: date-fns
-- **PDF Generation**: jsPDF + html2canvas for client-side generation
+- **PDF Generation**: jsPDF v4.2.1+ (planned for future implementation)
 - **Build Tool**: Vite for fast development and optimized production builds
 
 ### Backend
