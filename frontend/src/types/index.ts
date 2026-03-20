@@ -13,6 +13,7 @@ export interface Hotel {
   name: string;
   address?: string;
   city?: string;
+  country?: string;
   contactEmail?: string;
   contactPhone?: string;
   description?: string;

@@ -39,8 +39,19 @@ const HomePage: React.FC = () => {
     try {
       const response = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
+
+      // Fetch user role
+      const userResponse = await api.get('/auth/me');
+      localStorage.setItem('userRole', userResponse.data.role);
+
       setLoginOpen(false);
-      navigate('/dashboard');
+
+      // Navigate based on role
+      if (userResponse.data.role === 'MANAGER' || userResponse.data.role === 'ADMIN') {
+        navigate('/admin/bookings');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');
     }
@@ -50,6 +61,11 @@ const HomePage: React.FC = () => {
     try {
       const response = await api.post('/auth/register', { email, password });
       localStorage.setItem('token', response.data.token);
+
+      // Fetch user role
+      const userResponse = await api.get('/auth/me');
+      localStorage.setItem('userRole', userResponse.data.role);
+
       setRegisterOpen(false);
       navigate('/dashboard');
     } catch (err: any) {
