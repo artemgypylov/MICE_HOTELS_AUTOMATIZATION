@@ -246,6 +246,410 @@ router.put('/bookings/:id/status', async (req: AuthRequest, res) => {
 });
 
 // ============================================
+// ANALYTICS & DASHBOARD
+// ============================================
+
+// GET /api/admin/analytics/overview - Get dashboard overview statistics
+router.get('/analytics/overview', async (req: AuthRequest, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(dateFrom as string);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(dateTo as string);
+    }
+
+    const where: any = {};
+    if (Object.keys(dateFilter).length > 0) {
+      where.createdAt = dateFilter;
+    }
+
+    // Get total bookings count
+    const totalBookings = await prisma.booking.count({ where });
+
+    // Get bookings by status
+    const bookingsByStatus = await prisma.booking.groupBy({
+      by: ['status'],
+      where,
+      _count: {
+        id: true,
+      },
+    });
+
+    // Calculate total revenue (only from CONFIRMED bookings)
+    const revenueData = await prisma.booking.aggregate({
+      where: {
+        ...where,
+        status: 'CONFIRMED',
+        totalPrice: { not: null },
+      },
+      _sum: {
+        totalPrice: true,
+      },
+    });
+
+    // Get pending requests count
+    const pendingRequests = await prisma.booking.count({
+      where: {
+        ...where,
+        status: 'PENDING',
+      },
+    });
+
+    // Calculate average booking value
+    const avgBookingValue = await prisma.booking.aggregate({
+      where: {
+        ...where,
+        status: 'CONFIRMED',
+        totalPrice: { not: null },
+      },
+      _avg: {
+        totalPrice: true,
+      },
+    });
+
+    res.json({
+      totalBookings,
+      bookingsByStatus: bookingsByStatus.map((item) => ({
+        status: item.status,
+        count: item._count.id,
+      })),
+      totalRevenue: revenueData._sum.totalPrice || 0,
+      pendingRequests,
+      avgBookingValue: avgBookingValue._avg.totalPrice || 0,
+    });
+    return;
+  } catch (error) {
+    console.error('Admin analytics overview error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics overview' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/revenue-trends - Get revenue trends over time
+router.get('/analytics/revenue-trends', async (req: AuthRequest, res) => {
+  try {
+    const { dateFrom, dateTo, groupBy = 'month' } = req.query;
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(dateFrom as string);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(dateTo as string);
+    }
+
+    const where: any = {
+      status: 'CONFIRMED',
+      totalPrice: { not: null },
+    };
+
+    if (Object.keys(dateFilter).length > 0) {
+      where.createdAt = dateFilter;
+    }
+
+    // Get all confirmed bookings with dates
+    const bookings = await prisma.booking.findMany({
+      where,
+      select: {
+        createdAt: true,
+        totalPrice: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Group by date
+    const trendsMap = new Map<string, number>();
+    bookings.forEach((booking) => {
+      const date = new Date(booking.createdAt);
+      let key: string;
+
+      if (groupBy === 'day') {
+        key = date.toISOString().split('T')[0];
+      } else if (groupBy === 'week') {
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toISOString().split('T')[0];
+      } else {
+        // month
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      const currentValue = trendsMap.get(key) || 0;
+      trendsMap.set(key, currentValue + parseFloat(booking.totalPrice?.toString() || '0'));
+    });
+
+    const trends = Array.from(trendsMap.entries()).map(([period, revenue]) => ({
+      period,
+      revenue,
+    }));
+
+    res.json(trends);
+    return;
+  } catch (error) {
+    console.error('Admin revenue trends error:', error);
+    res.status(500).json({ error: 'Failed to fetch revenue trends' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/popular-halls - Get most booked halls
+router.get('/analytics/popular-halls', async (req: AuthRequest, res) => {
+  try {
+    const { limit = '10', dateFrom, dateTo } = req.query;
+
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(dateFrom as string);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(dateTo as string);
+    }
+
+    const where: any = {};
+    if (Object.keys(dateFilter).length > 0) {
+      where.bookingDate = dateFilter;
+    }
+
+    // Get hall booking counts
+    const hallBookings = await prisma.bookingHall.groupBy({
+      by: ['hallId'],
+      where,
+      _count: {
+        id: true,
+      },
+      _sum: {
+        price: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+      take: parseInt(limit as string),
+    });
+
+    // Get hall details
+    const hallIds = hallBookings.map((hb) => hb.hallId);
+    const halls = await prisma.hall.findMany({
+      where: {
+        id: { in: hallIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        maxCapacity: true,
+      },
+    });
+
+    const hallsMap = new Map(halls.map((h) => [h.id, h]));
+
+    const popularHalls = hallBookings.map((hb) => ({
+      hall: hallsMap.get(hb.hallId),
+      bookingCount: hb._count.id,
+      totalRevenue: hb._sum.price || 0,
+    }));
+
+    res.json(popularHalls);
+    return;
+  } catch (error) {
+    console.error('Admin popular halls error:', error);
+    res.status(500).json({ error: 'Failed to fetch popular halls' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/popular-catering - Get most ordered catering items
+router.get('/analytics/popular-catering', async (req: AuthRequest, res) => {
+  try {
+    const { limit = '10', dateFrom, dateTo } = req.query;
+
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(dateFrom as string);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(dateTo as string);
+    }
+
+    const where: any = {};
+    if (Object.keys(dateFilter).length > 0) {
+      where.createdAt = dateFilter;
+    }
+
+    // Get catering item counts
+    const cateringBookings = await prisma.bookingCatering.groupBy({
+      by: ['cateringItemId'],
+      where,
+      _count: {
+        id: true,
+      },
+      _sum: {
+        quantity: true,
+        price: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+      take: parseInt(limit as string),
+    });
+
+    // Get catering item details
+    const itemIds = cateringBookings.map((cb) => cb.cateringItemId);
+    const items = await prisma.cateringItem.findMany({
+      where: {
+        id: { in: itemIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        pricePerPerson: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    const itemsMap = new Map(items.map((i) => [i.id, i]));
+
+    const popularCatering = cateringBookings.map((cb) => ({
+      item: itemsMap.get(cb.cateringItemId),
+      orderCount: cb._count.id,
+      totalQuantity: cb._sum.quantity || 0,
+      totalRevenue: cb._sum.price || 0,
+    }));
+
+    res.json(popularCatering);
+    return;
+  } catch (error) {
+    console.error('Admin popular catering error:', error);
+    res.status(500).json({ error: 'Failed to fetch popular catering' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/popular-services - Get most requested services
+router.get('/analytics/popular-services', async (req: AuthRequest, res) => {
+  try {
+    const { limit = '10', dateFrom, dateTo } = req.query;
+
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(dateFrom as string);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(dateTo as string);
+    }
+
+    const where: any = {};
+    if (Object.keys(dateFilter).length > 0) {
+      where.createdAt = dateFilter;
+    }
+
+    // Get service counts
+    const serviceBookings = await prisma.bookingService.groupBy({
+      by: ['serviceId'],
+      where,
+      _count: {
+        id: true,
+      },
+      _sum: {
+        quantity: true,
+        price: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+      take: parseInt(limit as string),
+    });
+
+    // Get service details
+    const serviceIds = serviceBookings.map((sb) => sb.serviceId);
+    const services = await prisma.service.findMany({
+      where: {
+        id: { in: serviceIds },
+      },
+      select: {
+        id: true,
+        name: true,
+        basePrice: true,
+        pricingType: true,
+        category: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    const servicesMap = new Map(services.map((s) => [s.id, s]));
+
+    const popularServices = serviceBookings.map((sb) => ({
+      service: servicesMap.get(sb.serviceId),
+      orderCount: sb._count.id,
+      totalQuantity: sb._sum.quantity || 0,
+      totalRevenue: sb._sum.price || 0,
+    }));
+
+    res.json(popularServices);
+    return;
+  } catch (error) {
+    console.error('Admin popular services error:', error);
+    res.status(500).json({ error: 'Failed to fetch popular services' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/recent-bookings - Get recent bookings
+router.get('/analytics/recent-bookings', async (req: AuthRequest, res) => {
+  try {
+    const { limit = '10' } = req.query;
+
+    const recentBookings = await prisma.booking.findMany({
+      take: parseInt(limit as string),
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            companyName: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        hotel: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    res.json(recentBookings);
+    return;
+  } catch (error) {
+    console.error('Admin recent bookings error:', error);
+    res.status(500).json({ error: 'Failed to fetch recent bookings' });
+    return;
+  }
+});
+
+// ============================================
 // HALLS MANAGEMENT
 // ============================================
 
