@@ -33,9 +33,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 My Bookings
               </Button>
               {isAdmin && (
-                <Button color="inherit" onClick={() => navigate('/admin/bookings')}>
-                  Admin
-                </Button>
+                <>
+                  <Button color="inherit" onClick={() => navigate('/admin/bookings')}>
+                    Bookings
+                  </Button>
+                  <Button color="inherit" onClick={() => navigate('/admin/inventory')}>
+                    Inventory
+                  </Button>
+                </>
               )}
               <Button color="inherit" onClick={() => navigate('/profile')}>
                 Profile

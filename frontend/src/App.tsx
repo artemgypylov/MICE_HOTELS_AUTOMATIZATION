@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminBookingsPage from './pages/AdminBookingsPage';
 import AdminBookingDetailPage from './pages/AdminBookingDetailPage';
+import AdminInventoryPage from './pages/AdminInventoryPage';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -47,6 +48,18 @@ function App() {
               isAuthenticated ? (
                 <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
                   <AdminBookingDetailPage />
+                </RoleGuard>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/admin/inventory"
+            element={
+              isAuthenticated ? (
+                <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
+                  <AdminInventoryPage />
                 </RoleGuard>
               ) : (
                 <Navigate to="/" />
