@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminBookingsPage from './pages/AdminBookingsPage';
 import AdminBookingDetailPage from './pages/AdminBookingDetailPage';
 import AdminInventoryPage from './pages/AdminInventoryPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -60,6 +61,18 @@ function App() {
               isAuthenticated ? (
                 <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
                   <AdminInventoryPage />
+                </RoleGuard>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/admin/dashboard"
+            element={
+              isAuthenticated ? (
+                <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
+                  <AdminDashboardPage />
                 </RoleGuard>
               ) : (
                 <Navigate to="/" />
