@@ -38,12 +38,18 @@ router.post('/:id/check-availability', async (req, res) => {
     const hallId = req.params.id;
 
     // Get all booked dates for this hall in the date range
+    // Ignore CANCELLED bookings and abandoned DRAFTs
     const bookedDates = await prisma.bookingHall.findMany({
       where: {
         hallId,
         bookingDate: {
           gte: new Date(startDate),
           lte: new Date(endDate),
+        },
+        booking: {
+          status: {
+            in: ['PENDING', 'CONFIRMED'],
+          },
         },
       },
       select: {

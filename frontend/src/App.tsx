@@ -5,6 +5,8 @@ import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import WizardPage from './pages/WizardPage';
 import DashboardPage from './pages/DashboardPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -14,13 +16,15 @@ function App() {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
+          <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
           <Route
             path="/wizard/:hotelId"
-            element={isAuthenticated ? <WizardPage /> : <Navigate to="/" />}
+            element={isAuthenticated ? <WizardPage /> : <Navigate to="/login" />}
           />
           <Route
             path="/dashboard"
-            element={isAuthenticated ? <DashboardPage /> : <Navigate to="/" />}
+            element={isAuthenticated ? <DashboardPage /> : <Navigate to="/login" />}
           />
         </Routes>
       </Container>

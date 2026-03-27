@@ -13,6 +13,7 @@ import api from '../../../services/api';
 
 interface Step1Props {
   data: WizardData;
+  bookingId?: string | null;
   onUpdate: (data: Partial<WizardData>) => void;
   onNext: () => void;
   setBookingId: (id: string) => void;
@@ -27,7 +28,7 @@ const eventFormats = [
   { value: 'product_launch', label: 'Product Launch' },
 ];
 
-const Step1BasicParameters: React.FC<Step1Props> = ({ data, onUpdate, onNext, setBookingId }) => {
+const Step1BasicParameters: React.FC<Step1Props> = ({ data, bookingId, onUpdate, onNext, setBookingId }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -49,20 +50,33 @@ const Step1BasicParameters: React.FC<Step1Props> = ({ data, onUpdate, onNext, se
 
     setLoading(true);
     try {
-      const response = await api.post('/bookings', {
-        hotelId: data.hotelId,
-        eventName: data.eventName,
-        eventFormat: data.eventFormat,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        numGuests: data.numGuests,
-        notes: data.notes,
-      });
-
-      setBookingId(response.data.id);
+      if (bookingId) {
+        // If booking already exists, update it instead of creating a new one
+        await api.put(`/bookings/${bookingId}`, {
+          eventName: data.eventName,
+          eventFormat: data.eventFormat,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          numGuests: data.numGuests,
+          notes: data.notes,
+        });
+      } else {
+        // Create new booking
+        const response = await api.post('/bookings', {
+          hotelId: data.hotelId,
+          eventName: data.eventName,
+          eventFormat: data.eventFormat,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          numGuests: data.numGuests,
+          notes: data.notes,
+        });
+        setBookingId(response.data.id);
+      }
+      
       onNext();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create booking');
+      setError(err.response?.data?.error || 'Failed to create or update booking');
     } finally {
       setLoading(false);
     }

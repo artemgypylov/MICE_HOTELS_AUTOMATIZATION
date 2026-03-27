@@ -53,6 +53,7 @@ const WizardPage: React.FC = () => {
         return (
           <Step1BasicParameters
             data={wizardData}
+            bookingId={bookingId}
             onUpdate={updateWizardData}
             onNext={handleNext}
             setBookingId={setBookingId}

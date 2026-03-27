@@ -16,7 +16,8 @@ router.post('/register', async (req, res) => {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      res.status(400).json({ error: 'User already exists' });
+      return;
     }
 
     // Hash password and create user
@@ -46,9 +47,11 @@ router.post('/register', async (req, res) => {
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
 
     res.status(201).json({ user, token });
+    return;
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Registration failed' });
+    return;
   }
 });
 
@@ -60,13 +63,15 @@ router.post('/login', async (req, res) => {
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     // Check password
     const isValidPassword = await comparePassword(password, user.passwordHash);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
     }
 
     // Generate token
@@ -84,9 +89,11 @@ router.post('/login', async (req, res) => {
       },
       token,
     });
+    return;
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+    return;
   }
 });
 
@@ -107,13 +114,16 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     res.json(user);
+    return;
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+    return;
   }
 });
 
