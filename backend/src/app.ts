@@ -14,6 +14,8 @@ import cateringRoutes from './routes/catering.routes';
 import servicesRoutes from './routes/services.routes';
 import bookingsRoutes from './routes/bookings.routes';
 import adminRoutes from './routes/admin.routes';
+import eventsRoutes from './routes/events.routes';
+import suppliersRoutes from './routes/suppliers.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,6 +42,10 @@ app.use('/api/catering', cateringRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/bookings', bookingsRoutes);
 app.use('/api/admin', adminRoutes);
+
+// NEW: Multi-supplier event routes
+app.use('/api/events', eventsRoutes);
+app.use('/api/suppliers', suppliersRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
