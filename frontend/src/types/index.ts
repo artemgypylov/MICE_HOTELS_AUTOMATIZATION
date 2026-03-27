@@ -286,6 +286,100 @@ export interface EventPriceCalculation {
   grandTotal: number;
 }
 
+// ============================================================================
+// EVENT QUOTE TYPES (Sprint 2)
+// ============================================================================
+
+export interface EventQuoteRequest {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  budget?: number;
+  selectedOffers: Array<{
+    supplierId: string;
+    itemType: ItemType;
+    itemId: string;
+    quantity?: number;
+    serviceDate?: string;
+  }>;
+}
+
+export interface EventQuoteItem {
+  itemId: string;
+  itemType: ItemType;
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  serviceDate?: string;
+}
+
+export interface EventQuoteSupplier {
+  supplierId: string;
+  supplierName: string;
+  supplierType: SupplierType;
+  items: EventQuoteItem[];
+  total: number;
+}
+
+export interface EventQuote {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  numDays: number;
+  budget?: number;
+  supplierBreakdown: EventQuoteSupplier[];
+  subtotal: number;
+  platformCommission: number;
+  grandTotal: number;
+  withinBudget: boolean;
+  currency: string;
+  generatedAt: string;
+}
+
+// Event Constructor Wizard State
+export interface EventConstructorData {
+  // Step 1: Basic Parameters
+  eventName: string;
+  eventFormat: string;
+  city: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  budget?: number;
+
+  // Step 2: Venue Selection
+  selectedVenue?: {
+    supplierId: string;
+    hallId: string;
+    seatingLayoutId?: string;
+  };
+
+  // Step 3: Catering Selection
+  selectedCatering: Array<{
+    supplierId: string;
+    cateringItemId: string;
+    quantity: number;
+  }>;
+
+  // Step 4: Additional Services
+  selectedServices: Array<{
+    supplierId: string;
+    serviceId: string;
+    quantity: number;
+  }>;
+
+  // Current quote
+  currentQuote?: EventQuote;
+}
+
 // Transformation utilities
 
 export function bookingToEvent(booking: Booking): Event {

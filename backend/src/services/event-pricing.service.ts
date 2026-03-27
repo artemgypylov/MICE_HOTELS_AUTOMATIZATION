@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { EventPriceCalculation, EventItem } from '../types';
+import { EventPriceCalculation, EventItem, EventQuoteRequest, EventQuote } from '../types';
 
 const prisma = new PrismaClient();
 
@@ -166,5 +166,146 @@ export class EventPricingService {
     // - Bundle deals (e.g., venue + catering package)
     // - All-inclusive packages
     console.log(`Applying packages to event ${eventId} - not yet implemented`);
+  }
+
+  /**
+   * Generate a quote without saving to database
+   * Used for preliminary cost estimation in the event constructor
+   */
+  async generateQuote(quoteRequest: EventQuoteRequest): Promise<EventQuote> {
+    const { eventName, eventFormat, city, startDate, endDate, numGuests, budget, selectedOffers } = quoteRequest;
+
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    const numDays = Math.max(1, Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+    const supplierBreakdown = [];
+    let subtotal = 0;
+
+    // Group offers by supplier
+    const offersBySupplier = new Map<string, typeof selectedOffers>();
+    for (const offer of selectedOffers) {
+      if (!offersBySupplier.has(offer.supplierId)) {
+        offersBySupplier.set(offer.supplierId, []);
+      }
+      offersBySupplier.get(offer.supplierId)!.push(offer);
+    }
+
+    // Calculate pricing for each supplier
+    for (const [supplierId, offers] of offersBySupplier.entries()) {
+      const supplier = await prisma.supplier.findUnique({
+        where: { id: supplierId },
+      });
+
+      if (!supplier) {
+        throw new Error(`Supplier ${supplierId} not found`);
+      }
+
+      const items = [];
+      let supplierTotal = 0;
+
+      for (const offer of offers) {
+        let itemPrice = 0;
+        let itemName = '';
+        let itemDescription = '';
+
+        if (offer.itemType === 'HALL') {
+          const hall = await prisma.hall.findUnique({
+            where: { id: offer.itemId },
+          });
+          if (!hall) throw new Error(`Hall ${offer.itemId} not found`);
+
+          itemName = hall.name;
+          itemDescription = `${hall.maxCapacity} capacity, ${hall.areaSqm || 'N/A'} sqm`;
+          itemPrice = Number(hall.basePricePerDay) * numDays;
+        } else if (offer.itemType === 'CATERING') {
+          const cateringItem = await prisma.cateringItem.findUnique({
+            where: { id: offer.itemId },
+          });
+          if (!cateringItem) throw new Error(`Catering item ${offer.itemId} not found`);
+
+          itemName = cateringItem.name;
+          itemDescription = cateringItem.description || '';
+          itemPrice = Number(cateringItem.pricePerPerson) * numGuests * (offer.quantity || 1);
+        } else if (offer.itemType === 'SERVICE') {
+          const service = await prisma.service.findUnique({
+            where: { id: offer.itemId },
+          });
+          if (!service) throw new Error(`Service ${offer.itemId} not found`);
+
+          itemName = service.name;
+          itemDescription = service.description || '';
+
+          switch (service.pricingType) {
+            case 'FIXED':
+              itemPrice = Number(service.basePrice) * (offer.quantity || 1);
+              break;
+            case 'PER_PERSON':
+              itemPrice = Number(service.basePrice) * numGuests * (offer.quantity || 1);
+              break;
+            case 'PER_DAY':
+              itemPrice = Number(service.basePrice) * numDays * (offer.quantity || 1);
+              break;
+            case 'PER_HOUR':
+              itemPrice = Number(service.basePrice) * numDays * 8 * (offer.quantity || 1);
+              break;
+          }
+        }
+
+        supplierTotal += itemPrice;
+        items.push({
+          itemId: offer.itemId,
+          itemType: offer.itemType,
+          name: itemName,
+          description: itemDescription,
+          quantity: offer.quantity || 1,
+          unitPrice: itemPrice / (offer.quantity || 1),
+          totalPrice: itemPrice,
+          serviceDate: offer.serviceDate,
+        });
+      }
+
+      supplierBreakdown.push({
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        supplierType: supplier.supplierType,
+        items,
+        total: supplierTotal,
+      });
+
+      subtotal += supplierTotal;
+    }
+
+    // Calculate platform commission (5% of subtotal)
+    const platformCommission = subtotal * 0.05;
+    const grandTotal = subtotal + platformCommission;
+
+    // Check if within budget
+    const withinBudget = budget ? grandTotal <= budget : true;
+
+    return {
+      eventName,
+      eventFormat,
+      city,
+      startDate,
+      endDate,
+      numGuests,
+      numDays,
+      budget,
+      supplierBreakdown,
+      subtotal,
+      platformCommission,
+      grandTotal,
+      withinBudget,
+      currency: 'EUR',
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Calculate platform commission based on event total
+   */
+  calculatePlatformCommission(subtotal: number, commissionRate: number = 0.05): number {
+    return subtotal * commissionRate;
   }
 }

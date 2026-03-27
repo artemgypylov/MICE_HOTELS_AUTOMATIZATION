@@ -370,3 +370,61 @@ export interface EventPriceCalculation {
   }>;
   grandTotal: number;
 }
+
+// ============================================================================
+// EVENT QUOTE TYPES (Sprint 2)
+// ============================================================================
+
+export interface EventQuoteRequest {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  budget?: number;
+  selectedOffers: Array<{
+    supplierId: string;
+    itemType: ItemType;
+    itemId: string;
+    quantity?: number;
+    serviceDate?: string;
+  }>;
+}
+
+export interface EventQuoteItem {
+  itemId: string;
+  itemType: ItemType;
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  serviceDate?: string;
+}
+
+export interface EventQuoteSupplier {
+  supplierId: string;
+  supplierName: string;
+  supplierType: SupplierType;
+  items: EventQuoteItem[];
+  total: number;
+}
+
+export interface EventQuote {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  numDays: number;
+  budget?: number;
+  supplierBreakdown: EventQuoteSupplier[];
+  subtotal: number;
+  platformCommission: number;
+  grandTotal: number;
+  withinBudget: boolean;
+  currency: string;
+  generatedAt: string;
+}

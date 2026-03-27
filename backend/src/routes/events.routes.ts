@@ -12,6 +12,22 @@ const pricingService = new EventPricingService();
 router.use(authenticate);
 
 /**
+ * POST /api/events/quote - Generate a preliminary quote without saving
+ * This is used in the event constructor for real-time price calculation
+ */
+router.post('/quote', async (req: AuthRequest, res: Response) => {
+  try {
+    const quote = await pricingService.generateQuote(req.body);
+    res.json(quote);
+    return;
+  } catch (error) {
+    console.error('Error generating quote:', error);
+    res.status(400).json({ error: (error as Error).message });
+    return;
+  }
+});
+
+/**
  * POST /api/events - Create a new event
  */
 router.post('/', async (req: AuthRequest, res: Response) => {
