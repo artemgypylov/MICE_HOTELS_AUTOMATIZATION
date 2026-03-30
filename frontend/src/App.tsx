@@ -3,13 +3,16 @@ import { Container } from '@mui/material';
 import Layout from './components/layout/Layout';
 import RoleGuard from './components/RoleGuard';
 import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import WizardPage from './pages/WizardPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminBookingsPage from './pages/AdminBookingsPage';
 import AdminBookingDetailPage from './pages/AdminBookingDetailPage';
-import AdminInventoryPage from './pages/AdminInventoryPage';
+import AdminInventoryPage from './pages/AdminInventoryPageNew';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminSuppliersPage from './pages/AdminSuppliersPageNew';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -19,6 +22,8 @@ function App() {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
+          <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
           <Route
             path="/wizard/:hotelId"
             element={isAuthenticated ? <WizardPage /> : <Navigate to="/" />}
@@ -73,6 +78,18 @@ function App() {
               isAuthenticated ? (
                 <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
                   <AdminDashboardPage />
+                </RoleGuard>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/admin/suppliers"
+            element={
+              isAuthenticated ? (
+                <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
+                  <AdminSuppliersPage />
                 </RoleGuard>
               ) : (
                 <Navigate to="/" />
