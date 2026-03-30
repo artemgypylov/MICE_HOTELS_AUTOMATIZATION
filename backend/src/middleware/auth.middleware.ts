@@ -13,7 +13,7 @@ export const authenticate = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-) => {
+): void => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -27,15 +27,13 @@ export const authenticate = (
 
     req.user = decoded;
     next();
-    return;
   } catch (error) {
     res.status(401).json({ error: 'Invalid or expired token' });
-    return;
   }
 };
 
 export const authorize = (...roles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: 'Not authenticated' });
       return;
@@ -47,6 +45,5 @@ export const authorize = (...roles: string[]) => {
     }
 
     next();
-    return;
   };
 };

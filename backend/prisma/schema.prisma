@@ -38,6 +38,34 @@ enum PricingType {
   PER_HOUR
 }
 
+enum SupplierType {
+  VENUE
+  CATERING
+  DECORATION
+  AV_IT
+  TRANSFER
+  ACCOMMODATION
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum EventSupplierStatus {
+  SELECTED
+  CONFIRMED
+  DECLINED
+}
+
+enum ItemType {
+  HALL
+  CATERING
+  SERVICE
+}
+
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -51,6 +79,7 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   bookings      Booking[]
+  events        Event[]
 
   @@index([email])
   @@map("users")
@@ -81,7 +110,8 @@ model Hotel {
 
 model Hall {
   id                String    @id @default(uuid())
-  hotelId           String    @map("hotel_id")
+  hotelId           String?   @map("hotel_id")
+  supplierId        String?   @map("supplier_id")
   name              String
   maxCapacity       Int       @map("max_capacity")
   areaSqm           Decimal?  @map("area_sqm") @db.Decimal(10, 2)
@@ -95,11 +125,13 @@ model Hall {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  hotel             Hotel?            @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  supplier          Supplier?         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   seatingLayouts    SeatingLayout[]
   bookingHalls      BookingHall[]
 
   @@index([hotelId])
+  @@index([supplierId])
   @@index([isActive])
   @@map("halls")
 }
@@ -123,7 +155,8 @@ model SeatingLayout {
 
 model CateringCategory {
   id          String          @id @default(uuid())
-  hotelId     String          @map("hotel_id")
+  hotelId     String?         @map("hotel_id")
+  supplierId  String?         @map("supplier_id")
   name        String
   description String?
   sortOrder   Int             @default(0) @map("sort_order")
@@ -131,10 +164,12 @@ model CateringCategory {
   createdAt   DateTime        @default(now()) @map("created_at")
   updatedAt   DateTime        @updatedAt @map("updated_at")
 
-  hotel       Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  hotel       Hotel?          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  supplier    Supplier?       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   items       CateringItem[]
 
   @@index([hotelId])
+  @@index([supplierId])
   @@map("catering_categories")
 }
 
@@ -161,7 +196,8 @@ model CateringItem {
 
 model ServiceCategory {
   id          String    @id @default(uuid())
-  hotelId     String    @map("hotel_id")
+  hotelId     String?   @map("hotel_id")
+  supplierId  String?   @map("supplier_id")
   name        String
   description String?
   sortOrder   Int       @default(0) @map("sort_order")
@@ -169,10 +205,12 @@ model ServiceCategory {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  hotel       Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  hotel       Hotel?    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   services    Service[]
 
   @@index([hotelId])
+  @@index([supplierId])
   @@map("service_categories")
 }
 
@@ -277,4 +315,103 @@ model BookingService {
 
   @@index([bookingId])
   @@map("booking_services")
+}
+
+// ============================================================================
+// NEW MULTI-SUPPLIER EVENT MODELS
+// ============================================================================
+
+model Supplier {
+  id              String        @id @default(uuid())
+  name            String
+  supplierType    SupplierType  @map("supplier_type")
+  contactEmail    String?       @map("contact_email")
+  contactPhone    String?       @map("contact_phone")
+  address         String?
+  city            String?
+  country         String?
+  description     String?
+  logoUrl         String?       @map("logo_url")
+  settings        Json          @default("{}")
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  halls               Hall[]
+  cateringCategories  CateringCategory[]
+  serviceCategories   ServiceCategory[]
+  eventSuppliers      EventSupplier[]
+
+  @@index([supplierType])
+  @@index([city])
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+model Event {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  status        EventStatus   @default(DRAFT)
+  eventName     String?       @map("event_name")
+  eventFormat   String?       @map("event_format")
+  startDate     DateTime      @map("start_date") @db.Date
+  endDate       DateTime      @map("end_date") @db.Date
+  numGuests     Int           @map("num_guests")
+  totalPrice    Decimal?      @map("total_price") @db.Decimal(10, 2)
+  notes         String?
+  pdfUrl        String?       @map("pdf_url")
+  submittedAt   DateTime?     @map("submitted_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventSuppliers  EventSupplier[]
+  eventItems      EventItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate])
+  @@map("events")
+}
+
+model EventSupplier {
+  id            String              @id @default(uuid())
+  eventId       String              @map("event_id")
+  supplierId    String              @map("supplier_id")
+  supplierType  SupplierType        @map("supplier_type")
+  status        EventSupplierStatus @default(SELECTED)
+  totalPrice    Decimal?            @map("total_price") @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  supplier    Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  eventItems  EventItem[]
+
+  @@unique([eventId, supplierId])
+  @@index([eventId])
+  @@index([supplierId])
+  @@map("event_suppliers")
+}
+
+model EventItem {
+  id                String    @id @default(uuid())
+  eventId           String    @map("event_id")
+  eventSupplierId   String    @map("event_supplier_id")
+  itemType          ItemType  @map("item_type")
+  itemId            String    @map("item_id")
+  quantity          Int       @default(1)
+  serviceDate       DateTime? @map("service_date") @db.Date
+  price             Decimal   @db.Decimal(10, 2)
+  notes             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSupplier   EventSupplier   @relation(fields: [eventSupplierId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([eventSupplierId])
+  @@index([itemType, itemId])
+  @@map("event_items")
 }

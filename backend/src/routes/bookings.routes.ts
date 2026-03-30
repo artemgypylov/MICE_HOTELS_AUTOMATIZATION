@@ -75,12 +75,14 @@ router.get('/:id', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      res.status(404).json({ error: 'Booking not found' });
+      return;
     }
 
     // Check authorization
     if (booking.userId !== req.user!.id && req.user!.role !== 'MANAGER' && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Access denied' });
+      res.status(403).json({ error: 'Access denied' });
+      return;
     }
 
     res.json(booking);
@@ -102,15 +104,17 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!existingBooking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      res.status(404).json({ error: 'Booking not found' });
+      return;
     }
 
     if (existingBooking.userId !== req.user!.id) {
-      return res.status(403).json({ error: 'Access denied' });
+      res.status(403).json({ error: 'Access denied' });
+      return;
     }
 
     // Start transaction
-    const result = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // Update booking basic info
       const updatedBooking = await tx.booking.update({
         where: { id: bookingId },
@@ -293,7 +297,8 @@ router.post('/:id/calculate', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      res.status(404).json({ error: 'Booking not found' });
+      return;
     }
 
     if (booking.userId !== req.user!.id && req.user!.role !== 'MANAGER' && req.user!.role !== 'ADMIN') {
@@ -359,11 +364,13 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
     });
 
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      res.status(404).json({ error: 'Booking not found' });
+      return;
     }
 
     if (booking.userId !== req.user!.id) {
-      return res.status(403).json({ error: 'Access denied' });
+      res.status(403).json({ error: 'Access denied' });
+      return;
     }
 
     if (booking.bookingHalls.length === 0) {

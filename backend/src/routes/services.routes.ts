@@ -21,7 +21,8 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!service) {
-      return res.status(404).json({ error: 'Service not found' });
+      res.status(404).json({ error: 'Service not found' });
+      return;
     }
 
     res.json(service);

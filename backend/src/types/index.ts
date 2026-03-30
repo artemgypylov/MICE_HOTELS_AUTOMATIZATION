@@ -21,7 +21,8 @@ export interface Hotel {
 
 export interface Hall {
   id: string;
-  hotelId: string;
+  hotelId?: string;
+  supplierId?: string;
   name: string;
   maxCapacity: number;
   areaSqm?: number;
@@ -44,7 +45,8 @@ export interface SeatingLayout {
 
 export interface CateringCategory {
   id: string;
-  hotelId: string;
+  hotelId?: string;
+  supplierId?: string;
   name: string;
   description?: string;
   items: CateringItem[];
@@ -63,7 +65,8 @@ export interface CateringItem {
 
 export interface ServiceCategory {
   id: string;
-  hotelId: string;
+  hotelId?: string;
+  supplierId?: string;
   name: string;
   description?: string;
   services: Service[];
@@ -172,4 +175,256 @@ export interface AuthRequest extends Request {
     email: string;
     role: string;
   };
+}
+
+// ============================================================================
+// NEW MULTI-SUPPLIER EVENT TYPES
+// ============================================================================
+
+export type SupplierType = 'VENUE' | 'CATERING' | 'DECORATION' | 'AV_IT' | 'TRANSFER' | 'ACCOMMODATION';
+export type EventStatus = 'DRAFT' | 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+export type EventSupplierStatus = 'SELECTED' | 'CONFIRMED' | 'DECLINED';
+export type ItemType = 'HALL' | 'CATERING' | 'SERVICE';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  supplierType: SupplierType;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  description?: string;
+  logoUrl?: string;
+  settings?: Record<string, unknown>;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Event {
+  id: string;
+  userId: string;
+  status: EventStatus;
+  eventName?: string;
+  eventFormat?: string;
+  startDate: Date;
+  endDate: Date;
+  numGuests: number;
+  totalPrice?: number;
+  notes?: string;
+  pdfUrl?: string;
+  submittedAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface EventSupplier {
+  id: string;
+  eventId: string;
+  supplierId: string;
+  supplierType: SupplierType;
+  status: EventSupplierStatus;
+  totalPrice?: number;
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface EventItem {
+  id: string;
+  eventId: string;
+  eventSupplierId: string;
+  itemType: ItemType;
+  itemId: string;
+  quantity: number;
+  serviceDate?: Date;
+  price: number;
+  notes?: string;
+  createdAt?: Date;
+}
+
+// DTOs for Event Management
+
+export interface CreateEventDTO {
+  eventName?: string;
+  eventFormat?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  notes?: string;
+}
+
+export interface UpdateEventDTO {
+  eventName?: string;
+  eventFormat?: string;
+  startDate?: string;
+  endDate?: string;
+  numGuests?: number;
+  notes?: string;
+}
+
+export interface AddSupplierToEventDTO {
+  supplierId: string;
+  supplierType: SupplierType;
+  notes?: string;
+}
+
+export interface UpdateEventSupplierDTO {
+  status?: EventSupplierStatus;
+  notes?: string;
+}
+
+export interface AddItemToEventDTO {
+  eventSupplierId: string;
+  itemType: ItemType;
+  itemId: string;
+  quantity: number;
+  serviceDate?: string;
+  notes?: string;
+}
+
+export interface UpdateEventItemDTO {
+  quantity?: number;
+  serviceDate?: string;
+  price?: number;
+  notes?: string;
+}
+
+// DTOs for Supplier Management
+
+export interface CreateSupplierDTO {
+  name: string;
+  supplierType: SupplierType;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  description?: string;
+  logoUrl?: string;
+  settings?: Record<string, unknown>;
+}
+
+export interface UpdateSupplierDTO {
+  name?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  description?: string;
+  logoUrl?: string;
+  settings?: Record<string, unknown>;
+  isActive?: boolean;
+}
+
+export interface SupplierFilters {
+  supplierType?: SupplierType;
+  city?: string;
+  country?: string;
+  isActive?: boolean;
+}
+
+export interface SearchSuppliersDTO {
+  query?: string;
+  supplierType?: SupplierType;
+  city?: string;
+  country?: string;
+  minCapacity?: number;
+}
+
+// Response types with populated relations
+
+export interface EventWithSuppliers extends Event {
+  eventSuppliers: Array<EventSupplier & {
+    supplier: Supplier;
+    eventItems: Array<EventItem & {
+      hall?: Hall;
+      cateringItem?: CateringItem;
+      service?: Service;
+    }>;
+  }>;
+}
+
+export interface SupplierWithOffers extends Supplier {
+  halls?: Hall[];
+  cateringCategories?: CateringCategory[];
+  serviceCategories?: ServiceCategory[];
+}
+
+export interface EventPriceCalculation {
+  bySupplier: Array<{
+    supplierId: string;
+    supplierName: string;
+    supplierType: SupplierType;
+    total: number;
+    items: Array<{
+      name: string;
+      itemType: ItemType;
+      quantity: number;
+      price: number;
+      serviceDate?: string;
+    }>;
+  }>;
+  grandTotal: number;
+}
+
+// ============================================================================
+// EVENT QUOTE TYPES (Sprint 2)
+// ============================================================================
+
+export interface EventQuoteRequest {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  budget?: number;
+  selectedOffers: Array<{
+    supplierId: string;
+    itemType: ItemType;
+    itemId: string;
+    quantity?: number;
+    serviceDate?: string;
+  }>;
+}
+
+export interface EventQuoteItem {
+  itemId: string;
+  itemType: ItemType;
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  serviceDate?: string;
+}
+
+export interface EventQuoteSupplier {
+  supplierId: string;
+  supplierName: string;
+  supplierType: SupplierType;
+  items: EventQuoteItem[];
+  total: number;
+}
+
+export interface EventQuote {
+  eventName?: string;
+  eventFormat?: string;
+  city?: string;
+  startDate: string;
+  endDate: string;
+  numGuests: number;
+  numDays: number;
+  budget?: number;
+  supplierBreakdown: EventQuoteSupplier[];
+  subtotal: number;
+  platformCommission: number;
+  grandTotal: number;
+  withinBudget: boolean;
+  currency: string;
+  generatedAt: string;
 }

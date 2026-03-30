@@ -21,7 +21,8 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!hall) {
-      return res.status(404).json({ error: 'Hall not found' });
+      res.status(404).json({ error: 'Hall not found' });
+      return;
     }
 
     res.json(hall);

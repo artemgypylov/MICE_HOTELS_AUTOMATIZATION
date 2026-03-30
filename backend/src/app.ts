@@ -14,36 +14,15 @@ import cateringRoutes from './routes/catering.routes';
 import servicesRoutes from './routes/services.routes';
 import bookingsRoutes from './routes/bookings.routes';
 import adminRoutes from './routes/admin.routes';
+import eventsRoutes from './routes/events.routes';
+import suppliersRoutes from './routes/suppliers.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost and GitHub Codespaces
-    const allowedPatterns = [
-      /^http:\/\/localhost:\d+$/,
-      /^https:\/\/.*\.app\.github\.dev$/,
-      /^https:\/\/.*\.github\.dev$/,
-      /^https:\/\/.*\.preview\.app\.github\.dev$/,
-    ];
-    
-    if (allowedPatterns.some(pattern => pattern.test(origin))) {
-      return callback(null, true);
-    }
-    
-    // Check CORS_ORIGIN env variable
-    const corsOrigin = process.env.CORS_ORIGIN;
-    if (corsOrigin && origin === corsOrigin) {
-      return callback(null, true);
-    }
-    
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   credentials: true,
 }));
 app.use(express.json());
@@ -63,6 +42,10 @@ app.use('/api/catering', cateringRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/bookings', bookingsRoutes);
 app.use('/api/admin', adminRoutes);
+
+// NEW: Multi-supplier event routes
+app.use('/api/events', eventsRoutes);
+app.use('/api/suppliers', suppliersRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
