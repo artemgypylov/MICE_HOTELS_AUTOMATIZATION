@@ -27,7 +27,7 @@ export class SupplierService {
         country: data.country,
         description: data.description,
         logoUrl: data.logoUrl,
-        settings: data.settings || {},
+        settings: data.settings || ({} as any),
         isActive: true,
       },
     });

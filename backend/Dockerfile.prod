@@ -1,0 +1,33 @@
+# Stage 1: Build the application
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build the TypeScript code into JavaScript
+RUN npm run build
+
+# Stage 2: Create the production image
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy built assets and production dependencies
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+
+# Expose the port the app runs on
+EXPOSE 3000
+
+# Command to run the application
+CMD ["node", "dist/app.js"]
