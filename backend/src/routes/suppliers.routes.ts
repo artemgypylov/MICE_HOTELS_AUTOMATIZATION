@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import { SupplierType } from '@prisma/client';
 import { AuthRequest } from '../types';
 import { SupplierService } from '../services/supplier.service';
 import { authenticate, authorize } from '../middleware/auth.middleware';
@@ -13,7 +14,7 @@ const supplierService = new SupplierService();
 router.get('/', async (req, res: Response) => {
   try {
     const filters = {
-      supplierType: req.query.type as string | undefined,
+      supplierType: req.query.type as SupplierType | undefined,
       city: req.query.city as string,
       country: req.query.country as string,
       isActive: req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined,
@@ -36,7 +37,7 @@ router.get('/search', async (req, res: Response) => {
   try {
     const searchParams = {
       query: req.query.q as string,
-      supplierType: req.query.type as string | undefined,
+      supplierType: req.query.type as SupplierType | undefined,
       city: req.query.city as string,
       country: req.query.country as string,
       minCapacity: req.query.minCapacity ? parseInt(req.query.minCapacity as string) : undefined,

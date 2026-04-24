@@ -11,6 +11,7 @@ import {
   EventSupplier,
   EventItem,
 } from '../types';
+import { sendEmail } from './email.service';
 
 const prisma = new PrismaClient();
 
@@ -32,7 +33,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return event as any;
   }
 
   /**
@@ -53,7 +54,7 @@ export class EventService {
       data: updateData,
     });
 
-    return event as Event;
+    return event as any;
   }
 
   /**
@@ -94,7 +95,7 @@ export class EventService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return events as Event[];
+    return events as any[];
   }
 
   /**
@@ -159,7 +160,7 @@ export class EventService {
       },
     });
 
-    return eventSupplier as EventSupplier;
+    return eventSupplier as any;
   }
 
   /**
@@ -189,7 +190,7 @@ export class EventService {
       data: updateData,
     });
 
-    return eventSupplier as EventSupplier;
+    return eventSupplier as any;
   }
 
   /**
@@ -273,7 +274,7 @@ export class EventService {
     // Update event supplier total
     await this.updateEventSupplierTotal(data.eventSupplierId);
 
-    return eventItem as EventItem;
+    return eventItem as any;
   }
 
   /**
@@ -315,7 +316,7 @@ export class EventService {
     // Update event supplier total
     await this.updateEventSupplierTotal(eventItem.eventSupplierId);
 
-    return eventItem as EventItem;
+    return eventItem as any;
   }
 
   /**
@@ -330,21 +331,47 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return event as any;
   }
 
   /**
    * Confirm event (manager/admin only)
    */
   async confirmEvent(eventId: string): Promise<Event> {
-    const event = await prisma.event.update({
+    const eventWithUser = await prisma.event.update({
       where: { id: eventId },
       data: {
         status: 'CONFIRMED',
       },
+      include: {
+        user: {
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
 
-    return event as Event;
+    if (!eventWithUser) {
+      throw new Error('Event not found');
+    }
+
+    // Send confirmation email
+    if (eventWithUser.user && eventWithUser.user.email) {
+      const userName = (eventWithUser.user.firstName || eventWithUser.user.lastName)
+        ? `${eventWithUser.user.firstName || ''} ${eventWithUser.user.lastName || ''}`.trim()
+        : 'user';
+      await sendEmail({
+        to: eventWithUser.user.email,
+        subject: `Your event "${eventWithUser.eventName}" is confirmed!`,
+        text: `Dear ${userName},\n\nYour event "${eventWithUser.eventName}" has been successfully confirmed.`,
+      });
+    }
+
+    const { user, ...event } = eventWithUser;
+    return event as any;
   }
 
   /**
@@ -358,7 +385,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return event as any;
   }
 
   /**

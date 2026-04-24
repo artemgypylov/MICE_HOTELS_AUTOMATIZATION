@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient, BookingStatus } from '@prisma/client';
+import { PrismaClient, BookingStatus, Prisma } from '@prisma/client';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { AuthRequest } from '../types';
 
@@ -27,7 +27,7 @@ router.get('/bookings', async (req: AuthRequest, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // Build where clause
-    const where: any = {};
+    const where: Prisma.BookingWhereInput = {};
 
     if (status && status !== 'ALL') {
       where.status = status as BookingStatus;
@@ -41,7 +41,7 @@ router.get('/bookings', async (req: AuthRequest, res) => {
 
     if (dateTo) {
       if (where.startDate) {
-        where.startDate.lte = new Date(dateTo as string);
+        (where.startDate as Prisma.DateTimeFilter).lte = new Date(dateTo as string);
       } else {
         where.startDate = {
           lte: new Date(dateTo as string),
@@ -54,7 +54,9 @@ router.get('/bookings', async (req: AuthRequest, res) => {
         { eventName: { contains: search as string, mode: 'insensitive' } },
         { notes: { contains: search as string, mode: 'insensitive' } },
         { user: { email: { contains: search as string, mode: 'insensitive' } } },
-        { user: { companyName: { contains: search as string, mode: 'insensitive' } } },
+        {
+          user: { companyName: { contains: search as string, mode: 'insensitive' } },
+        },
       ];
     }
 
@@ -255,7 +257,7 @@ router.get('/analytics/overview', async (req: AuthRequest, res) => {
     const { dateFrom, dateTo } = req.query;
 
     // Build date filter
-    const dateFilter: any = {};
+    const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) {
       dateFilter.gte = new Date(dateFrom as string);
     }
@@ -263,7 +265,7 @@ router.get('/analytics/overview', async (req: AuthRequest, res) => {
       dateFilter.lte = new Date(dateTo as string);
     }
 
-    const where: any = {};
+    const where: Prisma.BookingWhereInput = {};
     if (Object.keys(dateFilter).length > 0) {
       where.createdAt = dateFilter;
     }
@@ -336,7 +338,7 @@ router.get('/analytics/revenue-trends', async (req: AuthRequest, res) => {
     const { dateFrom, dateTo, groupBy = 'month' } = req.query;
 
     // Build date filter
-    const dateFilter: any = {};
+    const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) {
       dateFilter.gte = new Date(dateFrom as string);
     }
@@ -344,7 +346,7 @@ router.get('/analytics/revenue-trends', async (req: AuthRequest, res) => {
       dateFilter.lte = new Date(dateTo as string);
     }
 
-    const where: any = {
+    const where: Prisma.BookingWhereInput = {
       status: 'CONFIRMED',
       totalPrice: { not: null },
     };
@@ -405,7 +407,7 @@ router.get('/analytics/popular-halls', async (req: AuthRequest, res) => {
   try {
     const { limit = '10', dateFrom, dateTo } = req.query;
 
-    const dateFilter: any = {};
+    const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) {
       dateFilter.gte = new Date(dateFrom as string);
     }
@@ -413,7 +415,7 @@ router.get('/analytics/popular-halls', async (req: AuthRequest, res) => {
       dateFilter.lte = new Date(dateTo as string);
     }
 
-    const where: any = {};
+    const where: Prisma.BookingHallWhereInput = {};
     if (Object.keys(dateFilter).length > 0) {
       where.bookingDate = dateFilter;
     }
@@ -471,7 +473,7 @@ router.get('/analytics/popular-catering', async (req: AuthRequest, res) => {
   try {
     const { limit = '10', dateFrom, dateTo } = req.query;
 
-    const dateFilter: any = {};
+    const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) {
       dateFilter.gte = new Date(dateFrom as string);
     }
@@ -479,7 +481,7 @@ router.get('/analytics/popular-catering', async (req: AuthRequest, res) => {
       dateFilter.lte = new Date(dateTo as string);
     }
 
-    const where: any = {};
+    const where: Prisma.BookingCateringWhereInput = {};
     if (Object.keys(dateFilter).length > 0) {
       where.createdAt = dateFilter;
     }
@@ -544,7 +546,7 @@ router.get('/analytics/popular-services', async (req: AuthRequest, res) => {
   try {
     const { limit = '10', dateFrom, dateTo } = req.query;
 
-    const dateFilter: any = {};
+    const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) {
       dateFilter.gte = new Date(dateFrom as string);
     }
@@ -552,7 +554,7 @@ router.get('/analytics/popular-services', async (req: AuthRequest, res) => {
       dateFilter.lte = new Date(dateTo as string);
     }
 
-    const where: any = {};
+    const where: Prisma.BookingServiceWhereInput = {};
     if (Object.keys(dateFilter).length > 0) {
       where.createdAt = dateFilter;
     }
@@ -658,7 +660,7 @@ router.get('/halls', async (req: AuthRequest, res) => {
   try {
     const { hotelId } = req.query;
 
-    const where: any = {};
+    const where: Prisma.HallWhereInput = {};
     if (hotelId) {
       where.hotelId = hotelId as string;
     }
@@ -824,16 +826,20 @@ router.put('/halls/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.HallUpdateInput = {};
     if (name !== undefined) updateData.name = name;
-    if (maxCapacity !== undefined) updateData.maxCapacity = parseInt(maxCapacity);
-    if (areaSqm !== undefined) updateData.areaSqm = areaSqm ? parseFloat(areaSqm) : null;
-    if (basePricePerDay !== undefined) updateData.basePricePerDay = parseFloat(basePricePerDay);
+    if (maxCapacity !== undefined)
+      updateData.maxCapacity = parseInt(maxCapacity);
+    if (areaSqm !== undefined)
+      updateData.areaSqm = areaSqm ? parseFloat(areaSqm) : null;
+    if (basePricePerDay !== undefined)
+      updateData.basePricePerDay = parseFloat(basePricePerDay);
     if (description !== undefined) updateData.description = description || null;
     if (amenities !== undefined) updateData.amenities = amenities;
     if (images !== undefined) updateData.images = images;
     if (floor !== undefined) updateData.floor = floor ? parseInt(floor) : null;
-    if (naturalLight !== undefined) updateData.naturalLight = naturalLight === true;
+    if (naturalLight !== undefined)
+      updateData.naturalLight = naturalLight === true;
     if (isActive !== undefined) updateData.isActive = isActive === true;
 
     const hall = await prisma.hall.update({
@@ -937,9 +943,9 @@ router.post('/halls/:hallId/seating-layouts', async (req: AuthRequest, res) => {
 
     res.status(201).json(seatingLayout);
     return;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Admin create seating layout error:', error);
-    if (error.code === 'P2002') {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       res.status(400).json({ error: 'Seating layout with this type already exists for this hall' });
       return;
     }
@@ -963,9 +969,10 @@ router.put('/seating-layouts/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.SeatingLayoutUpdateInput = {};
     if (capacity !== undefined) updateData.capacity = parseInt(capacity);
-    if (priceModifier !== undefined) updateData.priceModifier = parseFloat(priceModifier);
+    if (priceModifier !== undefined)
+      updateData.priceModifier = parseFloat(priceModifier);
     if (description !== undefined) updateData.description = description || null;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl || null;
 
@@ -1032,7 +1039,7 @@ router.get('/catering-categories', async (req: AuthRequest, res) => {
   try {
     const { hotelId } = req.query;
 
-    const where: any = {};
+    const where: Prisma.CateringCategoryWhereInput = {};
     if (hotelId) {
       where.hotelId = hotelId as string;
     }
@@ -1130,7 +1137,7 @@ router.put('/catering-categories/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.CateringCategoryUpdateInput = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description || null;
     if (sortOrder !== undefined) updateData.sortOrder = parseInt(sortOrder);
@@ -1202,7 +1209,7 @@ router.get('/catering-items', async (req: AuthRequest, res) => {
   try {
     const { categoryId } = req.query;
 
-    const where: any = {};
+    const where: Prisma.CateringItemWhereInput = {};
     if (categoryId) {
       where.categoryId = categoryId as string;
     }
@@ -1357,12 +1364,14 @@ router.put('/catering-items/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.CateringItemUpdateInput = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description || null;
-    if (pricePerPerson !== undefined) updateData.pricePerPerson = parseFloat(pricePerPerson);
+    if (pricePerPerson !== undefined)
+      updateData.pricePerPerson = parseFloat(pricePerPerson);
     if (minPersons !== undefined) updateData.minPersons = parseInt(minPersons);
-    if (dietaryOptions !== undefined) updateData.dietaryOptions = dietaryOptions;
+    if (dietaryOptions !== undefined)
+      updateData.dietaryOptions = dietaryOptions;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl || null;
     if (isActive !== undefined) updateData.isActive = isActive === true;
 
@@ -1441,7 +1450,7 @@ router.get('/service-categories', async (req: AuthRequest, res) => {
   try {
     const { hotelId } = req.query;
 
-    const where: any = {};
+    const where: Prisma.ServiceCategoryWhereInput = {};
     if (hotelId) {
       where.hotelId = hotelId as string;
     }
@@ -1539,7 +1548,7 @@ router.put('/service-categories/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.ServiceCategoryUpdateInput = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description || null;
     if (sortOrder !== undefined) updateData.sortOrder = parseInt(sortOrder);
@@ -1611,7 +1620,7 @@ router.get('/services', async (req: AuthRequest, res) => {
   try {
     const { categoryId } = req.query;
 
-    const where: any = {};
+    const where: Prisma.ServiceWhereInput = {};
     if (categoryId) {
       where.categoryId = categoryId as string;
     }
@@ -1766,7 +1775,7 @@ router.put('/services/:id', async (req: AuthRequest, res) => {
       return;
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.ServiceUpdateInput = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description || null;
     if (pricingType !== undefined) updateData.pricingType = pricingType;

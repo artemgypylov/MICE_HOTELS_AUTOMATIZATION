@@ -39,18 +39,12 @@ export class SupplierService {
    * Update supplier details
    */
   async updateSupplier(supplierId: string, data: UpdateSupplierDTO): Promise<Supplier> {
-    const updateData: Record<string, unknown> = {};
+    const { settings, ...rest } = data;
+    const updateData: any = { ...rest };
 
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.contactEmail !== undefined) updateData.contactEmail = data.contactEmail;
-    if (data.contactPhone !== undefined) updateData.contactPhone = data.contactPhone;
-    if (data.address !== undefined) updateData.address = data.address;
-    if (data.city !== undefined) updateData.city = data.city;
-    if (data.country !== undefined) updateData.country = data.country;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
-    if (data.settings !== undefined) updateData.settings = data.settings;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (settings) {
+      updateData.settings = settings;
+    }
 
     const supplier = await prisma.supplier.update({
       where: { id: supplierId },

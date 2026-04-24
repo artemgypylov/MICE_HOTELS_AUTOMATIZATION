@@ -214,15 +214,18 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 
           let price: Prisma.Decimal;
           switch (serviceData.pricingType) {
-            case 'PER_PERSON':
+            case 'PER_PERSON': {
               price = serviceData.basePrice.mul(updatedBooking.numGuests).mul(svc.quantity || 1);
               break;
-            case 'PER_DAY':
+            }
+            case 'PER_DAY': {
               const days = Math.ceil((updatedBooking.endDate.getTime() - updatedBooking.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
               price = serviceData.basePrice.mul(days).mul(svc.quantity || 1);
               break;
-            default:
+            }
+            default: {
               price = serviceData.basePrice.mul(svc.quantity || 1);
+            }
           }
 
           await tx.bookingService.create({
