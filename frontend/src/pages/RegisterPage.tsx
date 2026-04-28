@@ -3,9 +3,10 @@ import { Link as RouterLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, CalendarDays, ArrowRight, User, Building, Phone } from 'lucide-react';
 import { Button, Input, Label, Card, CardContent } from '@/components/ui';
-import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const RegisterPage = () => {
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -27,14 +28,11 @@ const RegisterPage = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await api.post('/auth/register', formData);
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('userRole', response.data.user.role);
+      await register(formData);
       window.location.href = '/dashboard';
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } };
-      setError(error?.response?.data?.error || 'Registration failed');
+      const error = err as { message?: string };
+      setError(error?.message || 'Registration failed');
       setLoading(false);
     }
   };

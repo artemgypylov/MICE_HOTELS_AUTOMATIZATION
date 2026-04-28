@@ -19,10 +19,13 @@ import {
 } from 'lucide-react';
 import { Button, Card, CardContent, Badge } from '@/components/ui';
 import api from '../services/api';
+import { appwriteData } from '../services/appwriteData';
 import { Hotel } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const { scrollY } = useScroll();
 
   // Parallax effects
@@ -33,14 +36,17 @@ const HomePage: React.FC = () => {
   const { data: hotels, isLoading } = useQuery<Hotel[]>({
     queryKey: ['hotels'],
     queryFn: async () => {
-      const response = await api.get('/hotels');
-      return response.data;
+      try {
+        return await appwriteData.listHotels();
+      } catch {
+        const response = await api.get('/hotels');
+        return response.data;
+      }
     },
   });
 
   const handleStartBooking = (hotelId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!isAuthenticated) {
       navigate('/login');
       return;
     }

@@ -1,0 +1,37 @@
+{
+	"inputs": [],
+	"servers": {
+		"appwrite-api": {
+			"command": "uvx",
+			"args": [
+				"mcp-server-appwrite"
+			],
+			"env": {
+				"APPWRITE_PROJECT_ID": "67be49d500269d2d1179",
+				"APPWRITE_API_KEY": "standard_a2fd751953c6c6914f0da1be1c00ecdecb0493d93a56109b966a0090cd04204cadbda683f7e444a4d396f04ead3ae125427ab97cef68479e0aa0b01db4ce8c76fc83a8bfd3d57451dadde1bae30b019984ebfe7a865964558de530182a9b84844a4e62630a69f8b483409ba6e14ca655db505ec36fb7ea3cc3bd7542372259cd",
+				"APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1"
+			},
+			"type": "stdio"
+		},
+		"microsoft/playwright-mcp": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"@playwright/mcp@latest"
+			],
+			"gallery": "https://api.mcp.github.com",
+			"version": "0.0.1-seed"
+		},
+		"io.github.ChromeDevTools/chrome-devtools-mcp": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"--registry",
+				"https://registry.npmjs.org",
+				"chrome-devtools-mcp@0.23.0"
+			],
+			"gallery": "https://api.mcp.github.com",
+			"version": "0.23.0"
+		}
+	}
+}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -18,6 +18,7 @@ import {
 import { Button, Card, CardContent, Badge, Input, Dialog } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import AdminLayout from '../components/admin/AdminLayout';
+import { appwriteData } from '../services/appwriteData';
 
 type SupplierCategory = 'hotels' | 'catering' | 'services';
 

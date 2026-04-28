@@ -15,7 +15,7 @@ import {
 import { WizardData } from '../../../types';
 import { Button, Input, Label, Textarea, Card, CardContent } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import api from '../../../services/api';
+import { appwriteData } from '../../../services/appwriteData';
 
 interface Step1Props {
   data: WizardData;
@@ -57,7 +57,7 @@ const Step1BasicParameters: React.FC<Step1Props> = ({ data, bookingId, onUpdate,
     setLoading(true);
     try {
       if (bookingId) {
-        await api.put(`/bookings/${bookingId}`, {
+        await appwriteData.updateBooking(bookingId, {
           eventName: data.eventName,
           eventFormat: data.eventFormat,
           startDate: data.startDate,
@@ -66,7 +66,7 @@ const Step1BasicParameters: React.FC<Step1Props> = ({ data, bookingId, onUpdate,
           notes: data.notes,
         });
       } else {
-        const response = await api.post('/bookings', {
+        const response = await appwriteData.createBooking({
           hotelId: data.hotelId,
           eventName: data.eventName,
           eventFormat: data.eventFormat,
@@ -75,7 +75,7 @@ const Step1BasicParameters: React.FC<Step1Props> = ({ data, bookingId, onUpdate,
           numGuests: data.numGuests,
           notes: data.notes,
         });
-        setBookingId(response.data.id);
+        setBookingId(response.id);
       }
       
       onNext();

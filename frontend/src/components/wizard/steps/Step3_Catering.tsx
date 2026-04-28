@@ -15,7 +15,7 @@ import {
 import { WizardData, CateringCategory } from '../../../types';
 import { Button, Card, Badge, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import api from '../../../services/api';
+import { appwriteData } from '../../../services/appwriteData';
 
 interface Step3Props {
   data: WizardData;
@@ -58,8 +58,8 @@ const Step3Catering: React.FC<Step3Props> = ({ data, bookingId, onUpdate, onNext
   const { data: categories } = useQuery<CateringCategory[]>({
     queryKey: ['catering', data.hotelId],
     queryFn: async () => {
-      const response = await api.get(`/hotels/${data.hotelId}/catering`);
-      return response.data;
+      return await appwriteData.listCatering(data.hotelId);
+      
     },
   });
 
@@ -94,9 +94,7 @@ const Step3Catering: React.FC<Step3Props> = ({ data, bookingId, onUpdate, onNext
 
     setLoading(true);
     try {
-      await api.put(`/bookings/${bookingId}`, {
-        catering: cateringData,
-      });
+      await appwriteData.updateBooking(bookingId, { catering: cateringData });
 
       onUpdate({ selectedCatering: cateringData });
       onNext();

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { WizardData, PriceCalculation, Booking } from '../../../types';
 import { Button, Card, CardContent, CardHeader, Badge } from '@/components/ui';
-import api from '../../../services/api';
+import { appwriteData } from '../../../services/appwriteData';
 
 interface Step5Props {
   data: WizardData;
@@ -32,8 +32,7 @@ const Step5FinalEstimate: React.FC<Step5Props> = ({ data, bookingId, onBack, onC
   const { data: calculation, isLoading: calcLoading } = useQuery<PriceCalculation>({
     queryKey: ['calculation', bookingId],
     queryFn: async () => {
-      const response = await api.post(`/bookings/${bookingId}/calculate`);
-      return response.data;
+      return await appwriteData.calculateEstimation(bookingId, data);
     },
     enabled: !!bookingId,
   });
@@ -42,8 +41,7 @@ const Step5FinalEstimate: React.FC<Step5Props> = ({ data, bookingId, onBack, onC
   useQuery<Booking>({
     queryKey: ['booking', bookingId],
     queryFn: async () => {
-      const response = await api.get(`/bookings/${bookingId}`);
-      return response.data;
+      return await appwriteData.getBooking(bookingId);
     },
     enabled: !!bookingId,
   });
@@ -51,7 +49,7 @@ const Step5FinalEstimate: React.FC<Step5Props> = ({ data, bookingId, onBack, onC
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await api.post(`/bookings/${bookingId}/submit`);
+      await appwriteData.updateBooking(bookingId, { status: 'PENDING' });
       onComplete();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };

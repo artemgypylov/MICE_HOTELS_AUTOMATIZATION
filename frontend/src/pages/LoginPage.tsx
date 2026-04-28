@@ -3,9 +3,10 @@ import { Link as RouterLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, CalendarDays, ArrowRight, Sparkles } from 'lucide-react';
 import { Button, Input, Label, Card, CardContent } from '@/components/ui';
-import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage = () => {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,14 +18,11 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('userRole', response.data.user.role);
+      await login(email, password);
       window.location.href = '/dashboard';
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } };
-      setError(error?.response?.data?.error || 'Invalid email or password');
+      const error = err as { message?: string };
+      setError(error?.message || 'Invalid email or password');
       setLoading(false);
     }
   };

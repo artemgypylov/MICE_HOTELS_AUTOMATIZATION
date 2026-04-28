@@ -14,7 +14,7 @@ import {
   ArrowRight,
   FileText
 } from 'lucide-react';
-import api from '../services/api';
+import { appwriteData } from '../services/appwriteData';
 import { Booking } from '../types';
 import { Button, Card, CardContent, Badge } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -23,8 +23,7 @@ const DashboardPage: React.FC = () => {
   const { data: bookings, isLoading } = useQuery<Booking[]>({
     queryKey: ['bookings'],
     queryFn: async () => {
-      const response = await api.get('/bookings');
-      return response.data;
+      return await appwriteData.listUserBookings();
     },
   });
 

@@ -2,12 +2,15 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Container } from '@mui/material';
 import Layout from './components/layout/Layout';
 import RoleGuard from './components/RoleGuard';
+import { useAuth } from './contexts/AuthContext';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import WizardPage from './pages/WizardPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
+import EventDashboardPage from './pages/EventDashboardPage';
+import EventDetailPage from './pages/EventDetailPage';
 import AdminBookingsPage from './pages/AdminBookingsPage';
 import AdminBookingDetailPage from './pages/AdminBookingDetailPage';
 import AdminInventoryPage from './pages/AdminInventoryPageNew';
@@ -15,7 +18,11 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminSuppliersPage from './pages/AdminSuppliersPageNew';
 
 function App() {
-  const isAuthenticated = !!localStorage.getItem('token');
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <Layout>
@@ -35,6 +42,14 @@ function App() {
           <Route
             path="/profile"
             element={isAuthenticated ? <ProfilePage /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/events"
+            element={isAuthenticated ? <EventDashboardPage /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/events/:id"
+            element={isAuthenticated ? <EventDetailPage /> : <Navigate to="/" />}
           />
           <Route
             path="/admin/bookings"

@@ -12,32 +12,28 @@ import {
 } from 'lucide-react';
 import { Button, Badge, Avatar, AvatarFallback } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { isAuthenticated, role, user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  const isAuthenticated = !!localStorage.getItem('token');
-  const userRole = localStorage.getItem('userRole');
-  const isAdmin = userRole === 'ADMIN' || userRole === 'MANAGER';
-  const userData = localStorage.getItem('user');
-  const user = userData ? JSON.parse(userData) : null;
+  const isAdmin = role === 'ADMIN' || role === 'MANAGER';
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('user');
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
   const navLinks = [
     ...(isAuthenticated ? [
       { href: '/dashboard', label: 'My Bookings', icon: LayoutDashboard },
+      { href: '/events', label: 'My Events', icon: Sparkles },
     ] : []),
     ...(isAdmin ? [
       { href: '/admin/dashboard', label: 'Admin Panel', icon: Settings },
@@ -94,19 +90,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="flex items-center gap-3">
               {isAuthenticated ? (
                 <>
-                  {userRole && (
+                  {role && (
                     <Badge 
                       variant="outline" 
                       className="hidden border-white/30 bg-white/10 text-white sm:inline-flex"
                     >
-                      {userRole}
+                      {role}
                     </Badge>
                   )}
                   
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8 ring-2 ring-white/30">
                       <AvatarFallback className="text-xs">
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
+                        {user?.name?.slice(0, 1) || user?.email?.slice(0, 1) || 'U'}
                       </AvatarFallback>
                     </Avatar>
                     

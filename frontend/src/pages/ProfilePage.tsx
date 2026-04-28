@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
   Typography,
@@ -8,70 +7,41 @@ import {
   TextField,
   Button,
   Alert,
-  CircularProgress,
   Grid,
 } from '@mui/material';
-import api from '../services/api';
-
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  companyName?: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-}
+import { useAuth } from '../contexts/AuthContext';
+import { appwriteAuth } from '../services/appwriteAuth';
 
 const ProfilePage: React.FC = () => {
-  const queryClient = useQueryClient();
+  const { user, role, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const { data: user, isLoading } = useQuery<User>({
-    queryKey: ['currentUser'],
-    queryFn: async () => {
-      const response = await api.get('/auth/me');
-      return response.data;
-    },
-  });
+  const getPref = (key: string): string => {
+    const value = user?.prefs?.[key];
+    return typeof value === 'string' ? value : '';
+  };
 
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    companyName: user?.companyName || '',
-    phone: user?.phone || '',
+    firstName: getPref('firstName'),
+    lastName: getPref('lastName'),
+    companyName: getPref('companyName'),
+    phone: getPref('phone'),
   });
 
   React.useEffect(() => {
     if (user) {
       setFormData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        companyName: user.companyName || '',
-        phone: user.phone || '',
+        firstName: getPref('firstName'),
+        lastName: getPref('lastName'),
+        companyName: getPref('companyName'),
+        phone: getPref('phone'),
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await api.put('/auth/profile', data);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-      setSuccessMessage('Profile updated successfully!');
-      setErrorMessage('');
-      setIsEditing(false);
-      setTimeout(() => setSuccessMessage(''), 3000);
-    },
-    onError: (error: any) => {
-      setErrorMessage(error.response?.data?.error || 'Failed to update profile');
-      setSuccessMessage('');
-    },
-  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -80,31 +50,43 @@ const ProfilePage: React.FC = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate(formData);
+    try {
+      setSaving(true);
+      setErrorMessage('');
+      await appwriteAuth.updatePrefs({
+        ...user?.prefs,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        companyName: formData.companyName,
+        phone: formData.phone,
+      });
+      await refreshUser();
+      setSuccessMessage('Profile updated successfully!');
+      setIsEditing(false);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setErrorMessage(error?.message || 'Failed to update profile');
+      setSuccessMessage('');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
     if (user) {
       setFormData({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        companyName: user.companyName || '',
-        phone: user.phone || '',
+        firstName: getPref('firstName'),
+        lastName: getPref('lastName'),
+        companyName: getPref('companyName'),
+        phone: getPref('phone'),
       });
     }
     setIsEditing(false);
     setErrorMessage('');
   };
-
-  if (isLoading) {
-    return (
-      <Container maxWidth="md" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
-      </Container>
-    );
-  }
 
   return (
     <Container maxWidth="md">
@@ -186,7 +168,7 @@ const ProfilePage: React.FC = () => {
                 <TextField
                   fullWidth
                   label="Role"
-                  value={user?.role || ''}
+                  value={role || ''}
                   disabled
                   helperText="Role is assigned by administrators"
                 />
@@ -207,7 +189,7 @@ const ProfilePage: React.FC = () => {
                       <Button
                         variant="outlined"
                         onClick={handleCancel}
-                        disabled={updateProfileMutation.isPending}
+                        disabled={saving}
                       >
                         Cancel
                       </Button>
@@ -215,9 +197,9 @@ const ProfilePage: React.FC = () => {
                         variant="contained"
                         color="primary"
                         type="submit"
-                        disabled={updateProfileMutation.isPending}
+                        disabled={saving}
                       >
-                        {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
+                        {saving ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </>
                   )}

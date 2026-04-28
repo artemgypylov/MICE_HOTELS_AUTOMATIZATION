@@ -20,7 +20,7 @@ import {
 import { WizardData, ServiceCategory } from '../../../types';
 import { Button, Card, Badge, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import api from '../../../services/api';
+import { appwriteData } from '../../../services/appwriteData';
 
 interface Step4Props {
   data: WizardData;
@@ -57,8 +57,8 @@ const Step4AdditionalServices: React.FC<Step4Props> = ({ data, bookingId, onUpda
   const { data: categories } = useQuery<ServiceCategory[]>({
     queryKey: ['services', data.hotelId],
     queryFn: async () => {
-      const response = await api.get(`/hotels/${data.hotelId}/services`);
-      return response.data;
+      return await appwriteData.listServices(data.hotelId);
+      
     },
   });
 
@@ -93,9 +93,7 @@ const Step4AdditionalServices: React.FC<Step4Props> = ({ data, bookingId, onUpda
 
     setLoading(true);
     try {
-      await api.put(`/bookings/${bookingId}`, {
-        services: servicesData,
-      });
+      await appwriteData.updateBooking(bookingId, { services: servicesData });
 
       onUpdate({ selectedServices: servicesData });
       onNext();

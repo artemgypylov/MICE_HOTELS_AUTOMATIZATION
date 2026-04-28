@@ -17,6 +17,7 @@ import { WizardData, Hall } from '../../../types';
 import { Button, Card, CardContent, Badge, Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import api from '../../../services/api';
+import { appwriteData } from '../../../services/appwriteData';
 
 interface Step2Props {
   data: WizardData;
@@ -64,8 +65,11 @@ const Step2HallSelection: React.FC<Step2Props> = ({ data, bookingId, onUpdate, o
   const { data: halls } = useQuery<Hall[]>({
     queryKey: ['halls', data.hotelId],
     queryFn: async () => {
-      const response = await api.get(`/hotels/${data.hotelId}/halls`);
-      return response.data;
+      try {
+        return await appwriteData.listHalls(data.hotelId);
+      } catch {
+      return await appwriteData.listHalls(data.hotelId);
+      }
     },
   });
 
@@ -99,8 +103,8 @@ const Step2HallSelection: React.FC<Step2Props> = ({ data, bookingId, onUpdate, o
 
     setLoading(true);
     try {
-      await api.put(`/bookings/${bookingId}`, {
-        halls: hallsData,
+      await appwriteData.updateBooking(bookingId, {
+        halls: hallsData, /* We might just save to frontend WizardData for now, but update is cool */
       });
 
       onUpdate({ selectedHalls: hallsData });
