@@ -301,6 +301,14 @@ router.post('/:id/calculate', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
+    if (booking.userId !== req.user!.id && req.user!.role !== 'MANAGER' && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
     // Calculate totals
     const hallsTotal = booking.bookingHalls.reduce((sum, bh) => sum + Number(bh.price), 0);
     const cateringTotal = booking.bookingCatering.reduce((sum, bc) => sum + Number(bc.price), 0);
@@ -350,6 +358,9 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        bookingHalls: true,
+      },
     });
 
     if (!booking) {
@@ -360,6 +371,10 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
     if (booking.userId !== req.user!.id) {
       res.status(403).json({ error: 'Access denied' });
       return;
+    }
+
+    if (booking.bookingHalls.length === 0) {
+      return res.status(400).json({ error: 'Cannot submit a booking without any selected halls' });
     }
 
     const updatedBooking = await prisma.booking.update({

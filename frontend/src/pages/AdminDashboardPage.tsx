@@ -23,6 +23,7 @@ import {
   PendingActions,
 } from '@mui/icons-material';
 import api from '../services/api';
+import AdminLayout from '../components/admin/AdminLayout';
 
 interface OverviewStats {
   totalBookings: number;
@@ -152,99 +153,100 @@ const AdminDashboardPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
+      <AdminLayout>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      </AdminLayout>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
-        {error}
-      </Alert>
+      <AdminLayout>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      </AdminLayout>
     );
   }
 
+  const statCards = [
+    {
+      title: 'Total Bookings',
+      value: overview?.totalBookings || 0,
+      icon: <Assignment />,
+      gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+      iconColor: '#fff',
+    },
+    {
+      title: 'Total Revenue',
+      value: formatPrice(overview?.totalRevenue || 0),
+      icon: <AttachMoney />,
+      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      iconColor: '#fff',
+    },
+    {
+      title: 'Pending Requests',
+      value: overview?.pendingRequests || 0,
+      icon: <PendingActions />,
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      iconColor: '#fff',
+    },
+    {
+      title: 'Avg Booking Value',
+      value: formatPrice(overview?.avgBookingValue || 0),
+      icon: <TrendingUp />,
+      gradient: 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+      iconColor: '#fff',
+    },
+  ];
+
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Admin Dashboard
-      </Typography>
-      <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
-        Overview of your hotel booking operations and analytics
-      </Typography>
+    <AdminLayout>
+      <Box>
+        <Typography variant="h4" fontWeight={700} gutterBottom>
+          Dashboard
+        </Typography>
+        <Typography variant="body1" color="text.secondary" gutterBottom sx={{ mb: 4 }}>
+          Overview of your hotel booking operations and analytics
+        </Typography>
 
-      {/* Key Metrics Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" variant="body2">
-                    Total Bookings
+        {/* Key Metrics Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {statCards.map((card, index) => (
+            <Grid item xs={12} sm={6} md={3} key={index}>
+              <Card 
+                sx={{ 
+                  background: card.gradient,
+                  color: 'white',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <CardContent sx={{ py: 3 }}>
+                  <Box 
+                    sx={{ 
+                      position: 'absolute', 
+                      right: -10, 
+                      top: -10, 
+                      opacity: 0.2,
+                      transform: 'rotate(15deg)'
+                    }}
+                  >
+                    {React.cloneElement(card.icon, { sx: { fontSize: 100 } })}
+                  </Box>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                    {card.title}
                   </Typography>
-                  <Typography variant="h4">{overview?.totalBookings || 0}</Typography>
-                </Box>
-                <Assignment color="primary" sx={{ fontSize: 48, opacity: 0.3 }} />
-              </Box>
-            </CardContent>
-          </Card>
+                  <Typography variant="h4" fontWeight={700}>
+                    {card.value}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" variant="body2">
-                    Total Revenue
-                  </Typography>
-                  <Typography variant="h4">
-                    {formatPrice(overview?.totalRevenue || 0)}
-                  </Typography>
-                </Box>
-                <AttachMoney color="success" sx={{ fontSize: 48, opacity: 0.3 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" variant="body2">
-                    Pending Requests
-                  </Typography>
-                  <Typography variant="h4">{overview?.pendingRequests || 0}</Typography>
-                </Box>
-                <PendingActions color="warning" sx={{ fontSize: 48, opacity: 0.3 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="text.secondary" variant="body2">
-                    Avg Booking Value
-                  </Typography>
-                  <Typography variant="h4">
-                    {formatPrice(overview?.avgBookingValue || 0)}
-                  </Typography>
-                </Box>
-                <TrendingUp color="info" sx={{ fontSize: 48, opacity: 0.3 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* Two Column Layout */}
       <Grid container spacing={3}>
@@ -441,6 +443,7 @@ const AdminDashboardPage: React.FC = () => {
         </Grid>
       </Grid>
     </Box>
+  </AdminLayout>
   );
 };
 

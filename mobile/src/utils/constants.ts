@@ -1,5 +1,6 @@
 // API Configuration
-export const API_URL = 'http://localhost:3000/api';
+// Use local IP address (e.g. 192.168.x.x) for physical device testing, or 10.0.2.2 for Android Emulator
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 // Storage Keys
 export const STORAGE_KEYS = {

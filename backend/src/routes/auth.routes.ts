@@ -47,9 +47,11 @@ router.post('/register', async (req, res) => {
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
 
     res.status(201).json({ user, token });
+    return;
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Registration failed' });
+    return;
   }
 });
 
@@ -87,9 +89,11 @@ router.post('/login', async (req, res) => {
       },
       token,
     });
+    return;
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+    return;
   }
 });
 
@@ -115,9 +119,11 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
     }
 
     res.json(user);
+    return;
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+    return;
   }
 });
 
