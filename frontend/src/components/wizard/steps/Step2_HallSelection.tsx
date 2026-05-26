@@ -15,7 +15,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { WizardData, Hall, SeatingLayout } from '../../../types';
+import { WizardData, Hall } from '../../../types';
 import api from '../../../services/api';
 
 interface Step2Props {

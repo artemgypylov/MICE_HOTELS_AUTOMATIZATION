@@ -1,10 +1,25 @@
 import express, { Response } from 'express';
 import { AuthRequest } from '../types';
+import { SupplierType } from '../types';
 import { SupplierService } from '../services/supplier.service';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 
 const router = express.Router();
 const supplierService = new SupplierService();
+
+const SUPPLIER_TYPES: readonly SupplierType[] = [
+  'VENUE',
+  'CATERING',
+  'DECORATION',
+  'AV_IT',
+  'TRANSFER',
+  'ACCOMMODATION',
+];
+
+function parseSupplierType(value: unknown): SupplierType | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  return (SUPPLIER_TYPES as readonly string[]).includes(value) ? (value as SupplierType) : undefined;
+}
 
 /**
  * GET /api/suppliers - List all suppliers with optional filters
@@ -12,8 +27,14 @@ const supplierService = new SupplierService();
  */
 router.get('/', async (req, res: Response) => {
   try {
+    const supplierType = parseSupplierType(req.query.type);
+    if (req.query.type !== undefined && supplierType === undefined) {
+      res.status(400).json({ error: `Invalid supplier type. Allowed: ${SUPPLIER_TYPES.join(', ')}` });
+      return;
+    }
+
     const filters = {
-      supplierType: req.query.type as string | undefined,
+      supplierType,
       city: req.query.city as string,
       country: req.query.country as string,
       isActive: req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined,
@@ -34,9 +55,15 @@ router.get('/', async (req, res: Response) => {
  */
 router.get('/search', async (req, res: Response) => {
   try {
+    const supplierType = parseSupplierType(req.query.type);
+    if (req.query.type !== undefined && supplierType === undefined) {
+      res.status(400).json({ error: `Invalid supplier type. Allowed: ${SUPPLIER_TYPES.join(', ')}` });
+      return;
+    }
+
     const searchParams = {
       query: req.query.q as string,
-      supplierType: req.query.type as string | undefined,
+      supplierType,
       city: req.query.city as string,
       country: req.query.country as string,
       minCapacity: req.query.minCapacity ? parseInt(req.query.minCapacity as string) : undefined,

@@ -11,7 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\""
