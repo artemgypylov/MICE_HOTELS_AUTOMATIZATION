@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import {
   Event,
   EventWithSuppliers,
@@ -13,6 +13,82 @@ import {
 } from '../types';
 
 const prisma = new PrismaClient();
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function decimalToNumber(value: Prisma.Decimal | null | undefined): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  return Number(value);
+}
+
+function mapSupplier(supplier: Prisma.SupplierGetPayload<{}>) {
+  return {
+    id: supplier.id,
+    name: supplier.name,
+    supplierType: supplier.supplierType,
+    contactEmail: supplier.contactEmail ?? undefined,
+    contactPhone: supplier.contactPhone ?? undefined,
+    address: supplier.address ?? undefined,
+    city: supplier.city ?? undefined,
+    country: supplier.country ?? undefined,
+    description: supplier.description ?? undefined,
+    logoUrl: supplier.logoUrl ?? undefined,
+    settings: isPlainObject(supplier.settings) ? supplier.settings : undefined,
+    isActive: supplier.isActive,
+    createdAt: supplier.createdAt,
+    updatedAt: supplier.updatedAt,
+  };
+}
+
+function mapEvent(event: Prisma.EventGetPayload<{}>): Event {
+  return {
+    id: event.id,
+    userId: event.userId,
+    status: event.status,
+    eventName: event.eventName ?? undefined,
+    eventFormat: event.eventFormat ?? undefined,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    numGuests: event.numGuests,
+    totalPrice: decimalToNumber(event.totalPrice),
+    notes: event.notes ?? undefined,
+    pdfUrl: event.pdfUrl ?? undefined,
+    submittedAt: event.submittedAt ?? undefined,
+    createdAt: event.createdAt,
+    updatedAt: event.updatedAt,
+  };
+}
+
+function mapEventSupplier(eventSupplier: Prisma.EventSupplierGetPayload<{}>): EventSupplier {
+  return {
+    id: eventSupplier.id,
+    eventId: eventSupplier.eventId,
+    supplierId: eventSupplier.supplierId,
+    supplierType: eventSupplier.supplierType,
+    status: eventSupplier.status,
+    totalPrice: decimalToNumber(eventSupplier.totalPrice),
+    notes: eventSupplier.notes ?? undefined,
+    createdAt: eventSupplier.createdAt,
+    updatedAt: eventSupplier.updatedAt,
+  };
+}
+
+function mapEventItem(eventItem: Prisma.EventItemGetPayload<{}>): EventItem {
+  return {
+    id: eventItem.id,
+    eventId: eventItem.eventId,
+    eventSupplierId: eventItem.eventSupplierId,
+    itemType: eventItem.itemType,
+    itemId: eventItem.itemId,
+    quantity: eventItem.quantity,
+    serviceDate: eventItem.serviceDate ?? undefined,
+    price: Number(eventItem.price),
+    notes: eventItem.notes ?? undefined,
+    createdAt: eventItem.createdAt,
+  };
+}
 
 export class EventService {
   /**
@@ -32,7 +108,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return mapEvent(event);
   }
 
   /**
@@ -53,7 +129,7 @@ export class EventService {
       data: updateData,
     });
 
-    return event as Event;
+    return mapEvent(event);
   }
 
   /**
@@ -66,13 +142,7 @@ export class EventService {
         eventSuppliers: {
           include: {
             supplier: true,
-            eventItems: {
-              include: {
-                // Note: We can't directly include polymorphic relations
-                // Caller will need to fetch hall/cateringItem/service separately
-                // based on itemType and itemId
-              },
-            },
+            eventItems: true,
           },
         },
       },
@@ -82,7 +152,14 @@ export class EventService {
       throw new Error('Event not found');
     }
 
-    return event as unknown as EventWithSuppliers;
+    return {
+      ...mapEvent(event),
+      eventSuppliers: event.eventSuppliers.map((es) => ({
+        ...mapEventSupplier(es),
+        supplier: mapSupplier(es.supplier),
+        eventItems: es.eventItems.map(mapEventItem),
+      })),
+    };
   }
 
   /**
@@ -94,7 +171,7 @@ export class EventService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return events as Event[];
+    return events.map(mapEvent);
   }
 
   /**
@@ -159,7 +236,7 @@ export class EventService {
       },
     });
 
-    return eventSupplier as EventSupplier;
+    return mapEventSupplier(eventSupplier);
   }
 
   /**
@@ -189,7 +266,7 @@ export class EventService {
       data: updateData,
     });
 
-    return eventSupplier as EventSupplier;
+    return mapEventSupplier(eventSupplier);
   }
 
   /**
@@ -273,7 +350,7 @@ export class EventService {
     // Update event supplier total
     await this.updateEventSupplierTotal(data.eventSupplierId);
 
-    return eventItem as EventItem;
+    return mapEventItem(eventItem);
   }
 
   /**
@@ -315,7 +392,7 @@ export class EventService {
     // Update event supplier total
     await this.updateEventSupplierTotal(eventItem.eventSupplierId);
 
-    return eventItem as EventItem;
+    return mapEventItem(eventItem);
   }
 
   /**
@@ -330,7 +407,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return mapEvent(event);
   }
 
   /**
@@ -344,7 +421,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return mapEvent(event);
   }
 
   /**
@@ -358,7 +435,7 @@ export class EventService {
       },
     });
 
-    return event as Event;
+    return mapEvent(event);
   }
 
   /**

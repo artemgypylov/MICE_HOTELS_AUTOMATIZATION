@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -16,7 +16,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { WizardData, PriceCalculation, Booking } from '../../../types';
+import { WizardData, PriceCalculation } from '../../../types';
 import api from '../../../services/api';
 
 interface Step5Props {
@@ -34,15 +34,6 @@ const Step5FinalEstimate: React.FC<Step5Props> = ({ data, bookingId, onBack, onC
     queryKey: ['calculation', bookingId],
     queryFn: async () => {
       const response = await api.post(`/bookings/${bookingId}/calculate`);
-      return response.data;
-    },
-    enabled: !!bookingId,
-  });
-
-  const { data: booking } = useQuery<Booking>({
-    queryKey: ['booking', bookingId],
-    queryFn: async () => {
-      const response = await api.get(`/bookings/${bookingId}`);
       return response.data;
     },
     enabled: !!bookingId,

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import {
   Supplier,
   SupplierWithOffers,
@@ -27,7 +27,7 @@ export class SupplierService {
         country: data.country,
         description: data.description,
         logoUrl: data.logoUrl,
-        settings: data.settings || {},
+        settings: (data.settings ?? {}) as Prisma.InputJsonValue,
         isActive: true,
       },
     });

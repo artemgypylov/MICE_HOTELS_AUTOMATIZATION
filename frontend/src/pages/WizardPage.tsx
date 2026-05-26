@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Paper, Stepper, Step, StepLabel, Box, Button } from '@mui/material';
+import { Container, Paper, Stepper, Step, StepLabel, Box } from '@mui/material';
 import Step1BasicParameters from '../components/wizard/steps/Step1_BasicParameters';
 import Step2HallSelection from '../components/wizard/steps/Step2_HallSelection';
 import Step3Catering from '../components/wizard/steps/Step3_Catering';
