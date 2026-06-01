@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/app.ts",
     "postinstall": "prisma generate",
-    "build": "prisma db push && ts-node prisma/seed.ts && tsc && mkdir -p public",
+    "build": "prisma db push && npm run prisma:seed && tsc",
     "start": "node dist/app.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
