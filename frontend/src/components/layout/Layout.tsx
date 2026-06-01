@@ -12,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('token');
   const userRole = localStorage.getItem('userRole');
   const isAdmin = userRole === 'MANAGER' || userRole === 'ADMIN';
+  const isSuperAdmin = userRole === 'ADMIN';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -43,6 +44,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Button color="inherit" onClick={() => navigate('/admin/inventory')}>
                     Inventory
                   </Button>
+                  {isSuperAdmin && (
+                    <Button color="inherit" onClick={() => navigate('/admin/users')}>
+                      Users
+                    </Button>
+                  )}
                 </>
               )}
               <Button color="inherit" onClick={() => navigate('/profile')}>
@@ -53,9 +59,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Button>
             </>
           ) : (
-            <Button color="inherit" onClick={() => navigate('/')}>
-              Login
-            </Button>
+            <>
+              <Button color="inherit" onClick={() => navigate('/login')}>
+                Login
+              </Button>
+              <Button color="inherit" onClick={() => navigate('/register')}>
+                Register
+              </Button>
+            </>
           )}
         </Toolbar>
       </AppBar>

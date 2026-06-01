@@ -1,6 +1,20 @@
 import { Router } from 'express';
-import { PrismaClient, BookingStatus } from '@prisma/client';
+import { PrismaClient, BookingStatus, Prisma } from '@prisma/client';
+import { Parser as Json2csvParser } from 'json2csv';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import {
+  commentSchema,
+  statusChangeSchema,
+  createHotelSchema,
+  updateHotelSchema,
+  hallAvailabilitySchema,
+} from '../validators/schemas';
+import {
+  notifyClientConfirmed,
+  notifyClientCancelled,
+} from '../services/email.service';
+import { createUploader, fileToUrl } from '../middleware/upload.middleware';
 import { AuthRequest } from '../types';
 
 const router = Router();
@@ -184,63 +198,250 @@ router.get('/bookings/:id', async (req: AuthRequest, res) => {
   }
 });
 
-// PUT /api/admin/bookings/:id/status - Update booking status
-router.put('/bookings/:id/status', async (req: AuthRequest, res) => {
+// Allowed status transitions for the booking lifecycle.
+// DRAFT → PENDING → CONFIRMED / CANCELLED ; PENDING/CONFIRMED → CANCELLED.
+const STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
+  DRAFT: ['PENDING', 'CANCELLED'],
+  PENDING: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['CANCELLED'],
+  CANCELLED: [],
+};
+
+// GET /api/admin/bookings/export - Export bookings to CSV (must precede :id route)
+router.get('/bookings/export', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
+    const { status, dateFrom, dateTo, search } = req.query;
+    const where: Prisma.BookingWhereInput = {};
 
-    // Validate status
-    const validStatuses: BookingStatus[] = ['DRAFT', 'PENDING', 'CONFIRMED', 'CANCELLED'];
-    if (!status || !validStatuses.includes(status)) {
-      res.status(400).json({
-        error: 'Invalid status',
-        validStatuses
-      });
-      return;
+    if (status && status !== 'ALL') where.status = status as BookingStatus;
+    if (dateFrom || dateTo) {
+      where.startDate = {};
+      if (dateFrom) (where.startDate as Prisma.DateTimeFilter).gte = new Date(dateFrom as string);
+      if (dateTo) (where.startDate as Prisma.DateTimeFilter).lte = new Date(dateTo as string);
+    }
+    if (search) {
+      where.OR = [
+        { eventName: { contains: search as string, mode: 'insensitive' } },
+        { user: { email: { contains: search as string, mode: 'insensitive' } } },
+      ];
     }
 
-    // Check if booking exists
-    const booking = await prisma.booking.findUnique({
-      where: { id },
-    });
-
-    if (!booking) {
-      res.status(404).json({ error: 'Booking not found' });
-      return;
-    }
-
-    // Update booking status
-    const updatedBooking = await prisma.booking.update({
-      where: { id },
-      data: {
-        status: status as BookingStatus,
-        updatedAt: new Date(),
-      },
+    const bookings = await prisma.booking.findMany({
+      where,
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            companyName: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        hotel: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        user: { select: { email: true, companyName: true, firstName: true, lastName: true } },
+        hotel: { select: { name: true } },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    res.json(updatedBooking);
+    const rows = bookings.map((b) => ({
+      id: b.id,
+      eventName: b.eventName || '',
+      client:
+        b.user.companyName ||
+        [b.user.firstName, b.user.lastName].filter(Boolean).join(' ') ||
+        b.user.email,
+      clientEmail: b.user.email,
+      hotel: b.hotel.name,
+      status: b.status,
+      startDate: b.startDate.toISOString().split('T')[0],
+      endDate: b.endDate.toISOString().split('T')[0],
+      numGuests: b.numGuests,
+      totalPrice: b.totalPrice ? Number(b.totalPrice) : 0,
+      createdAt: b.createdAt.toISOString(),
+    }));
+
+    const fields = [
+      'id', 'eventName', 'client', 'clientEmail', 'hotel', 'status',
+      'startDate', 'endDate', 'numGuests', 'totalPrice', 'createdAt',
+    ];
+    const parser = new Json2csvParser({ fields });
+    const csv = parser.parse(rows);
+
+    res.header('Content-Type', 'text/csv; charset=utf-8');
+    res.attachment(`bookings_${new Date().toISOString().split('T')[0]}.csv`);
+    // Prepend BOM so Excel renders UTF-8 (Cyrillic) correctly.
+    res.send('\uFEFF' + csv);
     return;
   } catch (error) {
-    console.error('Admin update booking status error:', error);
-    res.status(500).json({ error: 'Failed to update booking status' });
+    console.error('Admin export bookings error:', error);
+    res.status(500).json({ error: 'Failed to export bookings' });
+    return;
+  }
+});
+
+// PUT /api/admin/bookings/:id/status - Update booking status (with history + email)
+router.put(
+  '/bookings/:id/status',
+  validate(statusChangeSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { status, note } = req.body as { status: BookingStatus; note?: string };
+
+      const booking = await prisma.booking.findUnique({
+        where: { id },
+        include: { user: { select: { email: true } } },
+      });
+
+      if (!booking) {
+        res.status(404).json({ error: 'Booking not found' });
+        return;
+      }
+
+      const fromStatus = booking.status;
+
+      // Enforce allowed transitions (allow no-op to same status).
+      if (
+        fromStatus !== status &&
+        !STATUS_TRANSITIONS[fromStatus].includes(status)
+      ) {
+        res.status(400).json({
+          error: `Недопустимый переход статуса: ${fromStatus} → ${status}`,
+          allowed: STATUS_TRANSITIONS[fromStatus],
+        });
+        return;
+      }
+
+      const updatedBooking = await prisma.$transaction(async (tx) => {
+        const updated = await tx.booking.update({
+          where: { id },
+          data: { status, updatedAt: new Date() },
+          include: {
+            user: {
+              select: {
+                id: true, email: true, companyName: true,
+                firstName: true, lastName: true,
+              },
+            },
+            hotel: { select: { id: true, name: true } },
+          },
+        });
+
+        if (fromStatus !== status) {
+          await tx.bookingStatusHistory.create({
+            data: {
+              bookingId: id,
+              fromStatus,
+              toStatus: status,
+              changedById: req.user!.id,
+              note: note || null,
+            },
+          });
+        }
+
+        return updated;
+      });
+
+      // Fire-and-forget client notifications on terminal states.
+      void (async () => {
+        try {
+          if (!booking.user?.email) return;
+          if (status === 'CONFIRMED') {
+            await notifyClientConfirmed(
+              booking.user.email,
+              id,
+              booking.totalPrice ? Number(booking.totalPrice) : null,
+              booking.eventName
+            );
+          } else if (status === 'CANCELLED') {
+            await notifyClientCancelled(
+              booking.user.email,
+              id,
+              note || null,
+              booking.eventName
+            );
+          }
+        } catch (err) {
+          console.error('Status-change notification error:', err);
+        }
+      })();
+
+      res.json(updatedBooking);
+      return;
+    } catch (error) {
+      console.error('Admin update booking status error:', error);
+      res.status(500).json({ error: 'Failed to update booking status' });
+      return;
+    }
+  }
+);
+
+// GET /api/admin/bookings/:id/comments - List comments for a booking
+router.get('/bookings/:id/comments', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const comments = await prisma.bookingComment.findMany({
+      where: { bookingId: id },
+      include: {
+        author: {
+          select: { id: true, email: true, firstName: true, lastName: true, role: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json(comments);
+    return;
+  } catch (error) {
+    console.error('Admin list comments error:', error);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+    return;
+  }
+});
+
+// POST /api/admin/bookings/:id/comment - Add a manager comment
+router.post(
+  '/bookings/:id/comment',
+  validate(commentSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { text } = req.body as { text: string };
+
+      const booking = await prisma.booking.findUnique({ where: { id } });
+      if (!booking) {
+        res.status(404).json({ error: 'Booking not found' });
+        return;
+      }
+
+      const comment = await prisma.bookingComment.create({
+        data: { bookingId: id, authorId: req.user!.id, text },
+        include: {
+          author: {
+            select: { id: true, email: true, firstName: true, lastName: true, role: true },
+          },
+        },
+      });
+
+      res.status(201).json(comment);
+      return;
+    } catch (error) {
+      console.error('Admin add comment error:', error);
+      res.status(500).json({ error: 'Failed to add comment' });
+      return;
+    }
+  }
+);
+
+// GET /api/admin/bookings/:id/status-history - Status change timeline
+router.get('/bookings/:id/status-history', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const history = await prisma.bookingStatusHistory.findMany({
+      where: { bookingId: id },
+      include: {
+        changedBy: {
+          select: { id: true, email: true, firstName: true, lastName: true, role: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json(history);
+    return;
+  } catch (error) {
+    console.error('Admin status history error:', error);
+    res.status(500).json({ error: 'Failed to fetch status history' });
     return;
   }
 });
@@ -1840,5 +2041,449 @@ router.delete('/services/:id', async (req: AuthRequest, res) => {
     return;
   }
 });
+
+// ============================================
+// ANALYTICS: BY-HOTEL / BY-STATUS / TIMELINE
+// ============================================
+
+// GET /api/admin/analytics/by-hotel - Revenue & bookings grouped by hotel
+router.get('/analytics/by-hotel', async (_req: AuthRequest, res) => {
+  try {
+    const grouped = await prisma.booking.groupBy({
+      by: ['hotelId'],
+      _count: { id: true },
+      _sum: { totalPrice: true },
+    });
+
+    const hotels = await prisma.hotel.findMany({
+      where: { id: { in: grouped.map((g) => g.hotelId) } },
+      select: { id: true, name: true },
+    });
+    const hotelMap = new Map(hotels.map((h) => [h.id, h.name]));
+
+    const result = grouped
+      .map((g) => ({
+        hotelId: g.hotelId,
+        hotelName: hotelMap.get(g.hotelId) || 'Unknown',
+        bookings: g._count.id,
+        revenue: g._sum.totalPrice ? Number(g._sum.totalPrice) : 0,
+      }))
+      .sort((a, b) => b.bookings - a.bookings);
+
+    res.json(result);
+    return;
+  } catch (error) {
+    console.error('Admin analytics by-hotel error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics by hotel' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/by-status - Distribution of bookings by status
+router.get('/analytics/by-status', async (_req: AuthRequest, res) => {
+  try {
+    const grouped = await prisma.booking.groupBy({
+      by: ['status'],
+      _count: { id: true },
+      _sum: { totalPrice: true },
+    });
+
+    const result = grouped.map((g) => ({
+      status: g.status,
+      count: g._count.id,
+      revenue: g._sum.totalPrice ? Number(g._sum.totalPrice) : 0,
+    }));
+
+    res.json(result);
+    return;
+  } catch (error) {
+    console.error('Admin analytics by-status error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics by status' });
+    return;
+  }
+});
+
+// GET /api/admin/analytics/timeline - Daily bookings & revenue over a period
+router.get('/analytics/timeline', async (req: AuthRequest, res) => {
+  try {
+    const { dateFrom, dateTo } = req.query;
+
+    // Default to last 30 days when no range supplied.
+    const to = dateTo ? new Date(dateTo as string) : new Date();
+    const from = dateFrom
+      ? new Date(dateFrom as string)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const bookings = await prisma.booking.findMany({
+      where: { createdAt: { gte: from, lte: to } },
+      select: { createdAt: true, totalPrice: true, status: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const map = new Map<string, { bookings: number; revenue: number }>();
+    for (const b of bookings) {
+      const key = b.createdAt.toISOString().split('T')[0];
+      const entry = map.get(key) || { bookings: 0, revenue: 0 };
+      entry.bookings += 1;
+      // Count revenue only from CONFIRMED bookings.
+      if (b.status === 'CONFIRMED' && b.totalPrice) {
+        entry.revenue += Number(b.totalPrice);
+      }
+      map.set(key, entry);
+    }
+
+    const timeline = Array.from(map.entries()).map(([date, v]) => ({
+      date,
+      bookings: v.bookings,
+      revenue: v.revenue,
+    }));
+
+    res.json(timeline);
+    return;
+  } catch (error) {
+    console.error('Admin analytics timeline error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics timeline' });
+    return;
+  }
+});
+
+// ============================================
+// HOTELS MANAGEMENT
+// ============================================
+
+// GET /api/admin/hotels - List hotels with hall counts
+router.get('/hotels', async (_req: AuthRequest, res) => {
+  try {
+    const hotels = await prisma.hotel.findMany({
+      include: { _count: { select: { halls: true, bookings: true } } },
+      orderBy: { name: 'asc' },
+    });
+    res.json(hotels);
+    return;
+  } catch (error) {
+    console.error('Admin list hotels error:', error);
+    res.status(500).json({ error: 'Failed to fetch hotels' });
+    return;
+  }
+});
+
+// POST /api/admin/hotels - Create hotel
+router.post('/hotels', validate(createHotelSchema), async (req: AuthRequest, res) => {
+  try {
+    const { name, description, city, address, country, contactPhone, contactEmail, logoUrl, isActive } =
+      req.body;
+    const hotel = await prisma.hotel.create({
+      data: {
+        name,
+        description: description || null,
+        city: city || null,
+        address: address || null,
+        country: country || null,
+        contactPhone: contactPhone || null,
+        contactEmail: contactEmail || null,
+        logoUrl: logoUrl || null,
+        isActive: isActive !== false,
+      },
+    });
+    res.status(201).json(hotel);
+    return;
+  } catch (error) {
+    console.error('Admin create hotel error:', error);
+    res.status(500).json({ error: 'Failed to create hotel' });
+    return;
+  }
+});
+
+// PUT /api/admin/hotels/:id - Update hotel
+router.put('/hotels/:id', validate(updateHotelSchema), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.hotel.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Hotel not found' });
+      return;
+    }
+
+    const data: Prisma.HotelUpdateInput = {};
+    const body = req.body as Record<string, unknown>;
+    for (const key of [
+      'name', 'description', 'city', 'address', 'country',
+      'contactPhone', 'contactEmail', 'logoUrl', 'isActive',
+    ]) {
+      if (body[key] !== undefined) {
+        (data as Record<string, unknown>)[key] = body[key];
+      }
+    }
+
+    const hotel = await prisma.hotel.update({ where: { id }, data });
+    res.json(hotel);
+    return;
+  } catch (error) {
+    console.error('Admin update hotel error:', error);
+    res.status(500).json({ error: 'Failed to update hotel' });
+    return;
+  }
+});
+
+// DELETE /api/admin/hotels/:id - Soft delete (isActive = false)
+router.delete('/hotels/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.hotel.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Hotel not found' });
+      return;
+    }
+    await prisma.hotel.update({ where: { id }, data: { isActive: false } });
+    res.json({ message: 'Hotel deactivated successfully' });
+    return;
+  } catch (error) {
+    console.error('Admin delete hotel error:', error);
+    res.status(500).json({ error: 'Failed to delete hotel' });
+    return;
+  }
+});
+
+// ============================================
+// HALL AVAILABILITY MANAGEMENT
+// ============================================
+
+// GET /api/admin/halls/:id/availability - List unavailability ranges
+router.get('/halls/:id/availability', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const ranges = await prisma.hallUnavailability.findMany({
+      where: { hallId: id },
+      orderBy: { dateFrom: 'asc' },
+    });
+    res.json(ranges);
+    return;
+  } catch (error) {
+    console.error('Admin list hall availability error:', error);
+    res.status(500).json({ error: 'Failed to fetch hall availability' });
+    return;
+  }
+});
+
+// PUT /api/admin/halls/:id/availability - Add an unavailability range
+router.put(
+  '/halls/:id/availability',
+  validate(hallAvailabilitySchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { dateFrom, dateTo, reason } = req.body as {
+        dateFrom: string;
+        dateTo: string;
+        reason?: string;
+      };
+
+      const hall = await prisma.hall.findUnique({ where: { id } });
+      if (!hall) {
+        res.status(404).json({ error: 'Hall not found' });
+        return;
+      }
+
+      const from = new Date(dateFrom);
+      const to = new Date(dateTo);
+      if (from > to) {
+        res.status(400).json({ error: 'dateFrom не может быть позже dateTo' });
+        return;
+      }
+
+      const range = await prisma.hallUnavailability.create({
+        data: { hallId: id, dateFrom: from, dateTo: to, reason: reason || null },
+      });
+      res.status(201).json(range);
+      return;
+    } catch (error) {
+      console.error('Admin add hall availability error:', error);
+      res.status(500).json({ error: 'Failed to add hall availability' });
+      return;
+    }
+  }
+);
+
+// DELETE /api/admin/halls/availability/:id - Remove an unavailability range
+router.delete('/halls/availability/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const range = await prisma.hallUnavailability.findUnique({ where: { id } });
+    if (!range) {
+      res.status(404).json({ error: 'Availability range not found' });
+      return;
+    }
+    await prisma.hallUnavailability.delete({ where: { id } });
+    res.json({ message: 'Availability range removed' });
+    return;
+  } catch (error) {
+    console.error('Admin delete hall availability error:', error);
+    res.status(500).json({ error: 'Failed to delete hall availability' });
+    return;
+  }
+});
+
+// ============================================
+// USERS MANAGEMENT (ADMIN only)
+// ============================================
+
+// GET /api/admin/users - List users with optional role filter
+router.get('/users', authorize('ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { role, search } = req.query;
+    const where: Prisma.UserWhereInput = {};
+    if (role && role !== 'ALL') where.role = role as Prisma.UserWhereInput['role'];
+    if (search) {
+      where.OR = [
+        { email: { contains: search as string, mode: 'insensitive' } },
+        { companyName: { contains: search as string, mode: 'insensitive' } },
+        { firstName: { contains: search as string, mode: 'insensitive' } },
+        { lastName: { contains: search as string, mode: 'insensitive' } },
+      ];
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true, email: true, role: true, isActive: true,
+        companyName: true, firstName: true, lastName: true,
+        phone: true, lastLoginAt: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(users);
+    return;
+  } catch (error) {
+    console.error('Admin list users error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+    return;
+  }
+});
+
+// PATCH /api/admin/users/:id/role - Change a user's role
+router.patch('/users/:id/role', authorize('ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body as { role?: string };
+    const validRoles = ['CLIENT', 'MANAGER', 'ADMIN'];
+    if (!role || !validRoles.includes(role)) {
+      res.status(400).json({ error: 'Invalid role', validRoles });
+      return;
+    }
+    if (id === req.user!.id) {
+      res.status(400).json({ error: 'Нельзя изменить собственную роль' });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id },
+      data: { role: role as Prisma.UserUpdateInput['role'] },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+    res.json(user);
+    return;
+  } catch (error) {
+    console.error('Admin change role error:', error);
+    res.status(500).json({ error: 'Failed to change user role' });
+    return;
+  }
+});
+
+// PATCH /api/admin/users/:id/status - Activate / deactivate a user
+router.patch('/users/:id/status', authorize('ADMIN'), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body as { isActive?: boolean };
+    if (typeof isActive !== 'boolean') {
+      res.status(400).json({ error: 'isActive must be a boolean' });
+      return;
+    }
+    if (id === req.user!.id) {
+      res.status(400).json({ error: 'Нельзя деактивировать самого себя' });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id },
+      data: { isActive },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+    res.json(user);
+    return;
+  } catch (error) {
+    console.error('Admin change status error:', error);
+    res.status(500).json({ error: 'Failed to change user status' });
+    return;
+  }
+});
+
+// ============================================
+// FILE UPLOAD (PHOTOS)
+// ============================================
+
+// POST /api/admin/hotels/:id/upload-photos - Upload hotel photos (max 10)
+router.post(
+  '/hotels/:id/upload-photos',
+  createUploader('hotels').array('photos', 10),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const files = (req.files as Express.Multer.File[]) || [];
+      if (files.length === 0) {
+        res.status(400).json({ error: 'No files uploaded' });
+        return;
+      }
+      const urls = files.map((f) => fileToUrl('hotels', f.filename));
+      // Hotel has a single logoUrl; use the first image as logo if none set.
+      const hotel = await prisma.hotel.findUnique({ where: { id } });
+      if (!hotel) {
+        res.status(404).json({ error: 'Hotel not found' });
+        return;
+      }
+      await prisma.hotel.update({
+        where: { id },
+        data: { logoUrl: hotel.logoUrl || urls[0] },
+      });
+      res.status(201).json({ urls });
+      return;
+    } catch (error) {
+      console.error('Admin upload hotel photos error:', error);
+      res.status(500).json({ error: 'Failed to upload photos' });
+      return;
+    }
+  }
+);
+
+// POST /api/admin/halls/:id/upload-photos - Upload hall photos (appends to images)
+router.post(
+  '/halls/:id/upload-photos',
+  createUploader('halls').array('photos', 10),
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const files = (req.files as Express.Multer.File[]) || [];
+      if (files.length === 0) {
+        res.status(400).json({ error: 'No files uploaded' });
+        return;
+      }
+      const hall = await prisma.hall.findUnique({ where: { id } });
+      if (!hall) {
+        res.status(404).json({ error: 'Hall not found' });
+        return;
+      }
+      const urls = files.map((f) => fileToUrl('halls', f.filename));
+      const existing = Array.isArray(hall.images) ? (hall.images as string[]) : [];
+      const merged = [...existing, ...urls];
+      await prisma.hall.update({
+        where: { id },
+        data: { images: merged },
+      });
+      res.status(201).json({ urls, images: merged });
+      return;
+    } catch (error) {
+      console.error('Admin upload hall photos error:', error);
+      res.status(500).json({ error: 'Failed to upload photos' });
+      return;
+    }
+  }
+);
 
 export default router;

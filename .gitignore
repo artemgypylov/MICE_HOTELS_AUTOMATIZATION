@@ -25,8 +25,12 @@ Thumbs.db
 # Testing
 coverage/
 
-# Prisma
-backend/prisma/migrations/
+# Prisma — keep committed migration SQL, ignore local dev journal
+backend/prisma/migrations/**/migration_lock.toml
+
+# Uploaded files (keep folder, ignore contents)
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Logs
 *.log

@@ -24,9 +24,41 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import { ArrowBack } from '@mui/icons-material';
 import api from '../services/api';
+
+interface Author {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: string;
+}
+
+interface Comment {
+  id: string;
+  text: string;
+  createdAt: string;
+  author: Author;
+}
+
+interface StatusHistoryEntry {
+  id: string;
+  fromStatus: string | null;
+  toStatus: string;
+  note: string | null;
+  createdAt: string;
+  changedBy: Author;
+}
+
+const authorName = (a: Author): string =>
+  [a.firstName, a.lastName].filter(Boolean).join(' ') || a.email;
 
 interface BookingDetail {
   id: string;
@@ -107,7 +139,13 @@ const AdminBookingDetailPage: React.FC = () => {
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
+  const [statusNote, setStatusNote] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [postingComment, setPostingComment] = useState(false);
 
   const fetchBooking = async () => {
     try {
@@ -123,21 +161,55 @@ const AdminBookingDetailPage: React.FC = () => {
     }
   };
 
+  const fetchCommentsAndHistory = async () => {
+    try {
+      const [c, h] = await Promise.all([
+        api.get(`/admin/bookings/${id}/comments`),
+        api.get(`/admin/bookings/${id}/status-history`),
+      ]);
+      setComments(c.data);
+      setHistory(h.data);
+    } catch (err) {
+      console.error('Error fetching comments/history:', err);
+    }
+  };
+
   useEffect(() => {
     fetchBooking();
+    fetchCommentsAndHistory();
   }, [id]);
 
   const handleStatusChange = async () => {
     try {
       setUpdatingStatus(true);
-      await api.put(`/admin/bookings/${id}/status`, { status: newStatus });
+      await api.put(`/admin/bookings/${id}/status`, {
+        status: newStatus,
+        note: statusNote || undefined,
+      });
       setStatusDialogOpen(false);
-      fetchBooking(); // Refresh booking data
+      setStatusNote('');
+      fetchBooking();
+      fetchCommentsAndHistory();
     } catch (err: any) {
       console.error('Error updating status:', err);
       setError(err.response?.data?.error || 'Failed to update status');
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    try {
+      setPostingComment(true);
+      await api.post(`/admin/bookings/${id}/comment`, { text: newComment.trim() });
+      setNewComment('');
+      fetchCommentsAndHistory();
+    } catch (err: any) {
+      console.error('Error adding comment:', err);
+      setError(err.response?.data?.error || 'Failed to add comment');
+    } finally {
+      setPostingComment(false);
     }
   };
 
@@ -484,14 +556,84 @@ const AdminBookingDetailPage: React.FC = () => {
         </Grid>
       </Paper>
 
+      {/* Status History (timeline) */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          История статусов
+        </Typography>
+        {history.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Изменений статуса пока нет.
+          </Typography>
+        ) : (
+          <List dense>
+            {history.map((h) => (
+              <ListItem key={h.id} sx={{ borderLeft: '2px solid #1976d2', pl: 2, mb: 1 }}>
+                <ListItemText
+                  primary={
+                    <span>
+                      {h.fromStatus ? `${h.fromStatus} → ` : ''}
+                      <strong>{h.toStatus}</strong>
+                      {h.note ? ` — ${h.note}` : ''}
+                    </span>
+                  }
+                  secondary={`${authorName(h.changedBy)} · ${formatDateTime(h.createdAt)}`}
+                />
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </Paper>
+
+      {/* Manager comments */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Комментарии менеджера
+        </Typography>
+        {comments.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Комментариев пока нет.
+          </Typography>
+        ) : (
+          <List>
+            {comments.map((c) => (
+              <ListItem key={c.id} alignItems="flex-start" sx={{ display: 'block' }}>
+                <Typography variant="body2">{c.text}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {authorName(c.author)} · {formatDateTime(c.createdAt)}
+                </Typography>
+                <Divider sx={{ mt: 1 }} />
+              </ListItem>
+            ))}
+          </List>
+        )}
+        <Box display="flex" gap={1} mt={2}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Добавить комментарий…"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            multiline
+          />
+          <Button
+            variant="contained"
+            onClick={handleAddComment}
+            disabled={postingComment || !newComment.trim()}
+          >
+            {postingComment ? '…' : 'Отправить'}
+          </Button>
+        </Box>
+      </Paper>
+
       {/* Status Change Dialog */}
-      <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)}>
+      <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Change Booking Status</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
             Select a new status for this booking:
           </DialogContentText>
-          <FormControl fullWidth>
+          <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Status</InputLabel>
             <Select
               value={newStatus}
@@ -504,6 +646,14 @@ const AdminBookingDetailPage: React.FC = () => {
               <MenuItem value="CANCELLED">Cancelled</MenuItem>
             </Select>
           </FormControl>
+          <TextField
+            fullWidth
+            size="small"
+            label="Комментарий / причина (опционально)"
+            value={statusNote}
+            onChange={(e) => setStatusNote(e.target.value)}
+            multiline
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setStatusDialogOpen(false)} disabled={updatingStatus}>

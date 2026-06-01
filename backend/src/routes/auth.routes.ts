@@ -3,13 +3,15 @@ import { PrismaClient } from '@prisma/client';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
 import { authenticate } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { registerSchema, loginSchema } from '../validators/schemas';
 import { AuthRequest } from '../types';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // Register new user
-router.post('/register', async (req, res) => {
+router.post('/register', validate(registerSchema), async (req, res) => {
   try {
     const { email, password, companyName, firstName, lastName, phone } = req.body;
 
@@ -54,7 +56,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login user
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -71,6 +73,12 @@ router.post('/login', async (req, res) => {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+
+    // Record last login timestamp (best-effort).
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
     // Generate token
     const token = generateToken({ id: user.id, email: user.email, role: user.role });

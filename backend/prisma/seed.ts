@@ -1,381 +1,237 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, BookingStatus } from '@prisma/client';
 import { hashPassword } from '../src/utils/password';
 
 const prisma = new PrismaClient();
 
+/**
+ * Idempotent seed. Clears bookings + inventory (but keeps users) and recreates
+ * 3 Moscow hotels with halls, catering, services and demo bookings in various
+ * statuses for admin-panel demonstration.
+ */
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // Create a test client user
-  const hashedPassword = await hashPassword('password123');
-  const user = await prisma.user.upsert({
+  // ---- Users (upsert, never wiped) --------------------------------------
+  const client = await prisma.user.upsert({
     where: { email: 'client@example.com' },
     update: {},
     create: {
       email: 'client@example.com',
-      passwordHash: hashedPassword,
+      passwordHash: await hashPassword('password123'),
       role: 'CLIENT',
       companyName: 'Tech Corp',
-      firstName: 'John',
-      lastName: 'Doe',
-      phone: '+1234567890',
+      firstName: 'Иван',
+      lastName: 'Клиентов',
+      phone: '+7 900 000-00-01',
     },
   });
-  console.log('✓ Created client user:', user.email);
-
-  // Create a manager user
-  const managerPassword = await hashPassword('manager123');
   const manager = await prisma.user.upsert({
     where: { email: 'manager@example.com' },
     update: {},
     create: {
       email: 'manager@example.com',
-      passwordHash: managerPassword,
+      passwordHash: await hashPassword('manager123'),
       role: 'MANAGER',
-      companyName: 'Grand Business Hotel',
-      firstName: 'Alice',
-      lastName: 'Manager',
-      phone: '+1234567891',
+      companyName: 'MICE Hotels',
+      firstName: 'Мария',
+      lastName: 'Менеджерова',
+      phone: '+7 900 000-00-02',
     },
   });
-  console.log('✓ Created manager user:', manager.email);
-
-  // Create an admin user
-  const adminPassword = await hashPassword('admin123');
   const admin = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
     update: {},
     create: {
       email: 'admin@example.com',
-      passwordHash: adminPassword,
+      passwordHash: await hashPassword('admin123'),
       role: 'ADMIN',
       companyName: 'System Admin',
-      firstName: 'Bob',
-      lastName: 'Administrator',
-      phone: '+1234567892',
+      firstName: 'Алексей',
+      lastName: 'Админов',
+      phone: '+7 900 000-00-03',
     },
   });
-  console.log('✓ Created admin user:', admin.email);
+  console.log('✓ Users ready:', [client.email, manager.email, admin.email].join(', '));
 
-  // Create a hotel
-  const hotel = await prisma.hotel.upsert({
-    where: { id: 'hotel-1' },
-    update: {},
-    create: {
-      id: 'hotel-1',
-      name: 'Grand Business Hotel',
-      address: '123 Business Street',
-      city: 'New York',
-      country: 'USA',
-      contactEmail: 'events@grandbusiness.com',
-      contactPhone: '+1234567890',
-      description: 'Premium business hotel with world-class conference facilities',
-      isActive: true,
+  // ---- Clean inventory + bookings (idempotent reseed) -------------------
+  await prisma.bookingStatusHistory.deleteMany();
+  await prisma.bookingComment.deleteMany();
+  await prisma.bookingService.deleteMany();
+  await prisma.bookingCatering.deleteMany();
+  await prisma.bookingHall.deleteMany();
+  await prisma.booking.deleteMany();
+  await prisma.hallUnavailability.deleteMany();
+  await prisma.seatingLayout.deleteMany();
+  await prisma.service.deleteMany();
+  await prisma.serviceCategory.deleteMany();
+  await prisma.cateringItem.deleteMany();
+  await prisma.cateringCategory.deleteMany();
+  await prisma.hall.deleteMany({ where: { hotelId: { not: null } } });
+  await prisma.hotel.deleteMany();
+  console.log('✓ Cleared existing inventory & bookings');
+
+  const hotelsData = [
+    {
+      name: 'Гранд Отель Москва',
+      city: 'Москва',
+      address: 'ул. Тверская, 1',
+      contactEmail: 'events@grandmoscow.ru',
+      contactPhone: '+7 495 100-10-10',
+      description: 'Премиальный бизнес-отель в центре Москвы с конференц-залами.',
     },
-  });
-  console.log('✓ Created hotel:', hotel.name);
-
-  // Create halls
-  const hall1 = await prisma.hall.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Grand Ballroom',
-      maxCapacity: 500,
-      areaSqm: 450,
-      basePricePerDay: 5000,
-      description: 'Our largest and most prestigious event space',
-      amenities: ['projector', 'wifi', 'sound_system', 'stage', 'natural_light'],
-      images: ['/images/ballroom1.jpg', '/images/ballroom2.jpg'],
-      floor: 2,
-      naturalLight: true,
-      isActive: true,
+    {
+      name: 'Бизнес-Центр Сити',
+      city: 'Москва',
+      address: 'Пресненская наб., 12',
+      contactEmail: 'events@citymoscow.ru',
+      contactPhone: '+7 495 200-20-20',
+      description: 'Современный комплекс в Москва-Сити для корпоративных мероприятий.',
     },
-  });
-
-  const hall2 = await prisma.hall.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Executive Conference Room',
-      maxCapacity: 50,
-      areaSqm: 80,
-      basePricePerDay: 1500,
-      description: 'Perfect for board meetings and executive sessions',
-      amenities: ['projector', 'wifi', 'whiteboard', 'video_conference'],
-      images: ['/images/conference1.jpg'],
-      floor: 5,
-      naturalLight: true,
-      isActive: true,
+    {
+      name: 'Парк Отель Сокольники',
+      city: 'Москва',
+      address: 'Сокольнический Вал, 5',
+      contactEmail: 'events@parksokolniki.ru',
+      contactPhone: '+7 495 300-30-30',
+      description: 'Зелёная локация с просторными залами и террасами.',
     },
-  });
+  ];
 
-  const hall3 = await prisma.hall.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Innovation Hub',
-      maxCapacity: 100,
-      areaSqm: 120,
-      basePricePerDay: 2500,
-      description: 'Modern space designed for workshops and training sessions',
-      amenities: ['projector', 'wifi', 'whiteboard', 'movable_furniture'],
-      images: ['/images/hub1.jpg'],
-      floor: 3,
-      naturalLight: true,
-      isActive: true,
-    },
-  });
+  const hallSizes = [
+    { suffix: 'Малый зал', cap: 50, price: 1200 },
+    { suffix: 'Средний зал', cap: 100, price: 2500 },
+    { suffix: 'Большой зал', cap: 200, price: 4500 },
+    { suffix: 'Гранд-зал', cap: 500, price: 9000 },
+  ];
 
-  console.log('✓ Created 3 halls');
+  const createdHalls: { id: string }[] = [];
 
-  // Create seating layouts for halls
-  await prisma.seatingLayout.createMany({
-    data: [
-      { hallId: hall1.id, layoutType: 'THEATER', capacity: 500, priceModifier: 0 },
-      { hallId: hall1.id, layoutType: 'BANQUET', capacity: 300, priceModifier: 500 },
-      { hallId: hall1.id, layoutType: 'COCKTAIL', capacity: 400, priceModifier: 300 },
-      { hallId: hall2.id, layoutType: 'BOARDROOM', capacity: 20, priceModifier: 0 },
-      { hallId: hall2.id, layoutType: 'U_SHAPE', capacity: 30, priceModifier: 100 },
-      { hallId: hall2.id, layoutType: 'CLASSROOM', capacity: 40, priceModifier: 150 },
-      { hallId: hall3.id, layoutType: 'THEATER', capacity: 100, priceModifier: 0 },
-      { hallId: hall3.id, layoutType: 'CLASSROOM', capacity: 60, priceModifier: 200 },
-      { hallId: hall3.id, layoutType: 'U_SHAPE', capacity: 40, priceModifier: 150 },
-    ],
-  });
-  console.log('✓ Created seating layouts');
+  for (const h of hotelsData) {
+    const hotel = await prisma.hotel.create({ data: { ...h, country: 'Россия', isActive: true } });
 
-  // Create catering categories
-  const coffeeBreakCat = await prisma.cateringCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Coffee Breaks',
-      description: 'Refreshment breaks for your event',
-      sortOrder: 1,
-      isActive: true,
-    },
-  });
+    // 4 halls per hotel
+    for (const s of hallSizes) {
+      const hall = await prisma.hall.create({
+        data: {
+          hotelId: hotel.id,
+          name: `${s.suffix}`,
+          maxCapacity: s.cap,
+          basePricePerDay: s.price,
+          description: `Зал вместимостью до ${s.cap} человек`,
+          amenities: ['wifi', 'projector', 'sound_system'],
+          images: [],
+          naturalLight: true,
+          isActive: true,
+        },
+      });
+      createdHalls.push(hall);
+      await prisma.seatingLayout.createMany({
+        data: [
+          { hallId: hall.id, layoutType: 'THEATER', capacity: s.cap, priceModifier: 0 },
+          { hallId: hall.id, layoutType: 'CLASSROOM', capacity: Math.round(s.cap * 0.6), priceModifier: 200 },
+          { hallId: hall.id, layoutType: 'BANQUET', capacity: Math.round(s.cap * 0.5), priceModifier: 500 },
+        ],
+      });
+    }
 
-  const lunchCat = await prisma.cateringCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Lunch Options',
-      description: 'Various lunch menus for your guests',
-      sortOrder: 2,
-      isActive: true,
-    },
-  });
+    // Catering: 1 category, several items (coffee break / lunch / dinner / welcome drink)
+    const cat = await prisma.cateringCategory.create({
+      data: { hotelId: hotel.id, name: 'Меню мероприятий', sortOrder: 1, isActive: true },
+    });
+    await prisma.cateringItem.createMany({
+      data: [
+        { categoryId: cat.id, name: 'Welcome drink', pricePerPerson: 800, minPersons: 10, dietaryOptions: [], isActive: true },
+        { categoryId: cat.id, name: 'Кофе-брейк стандарт', pricePerPerson: 1200, minPersons: 10, dietaryOptions: ['vegetarian'], isActive: true },
+        { categoryId: cat.id, name: 'Кофе-брейк премиум', pricePerPerson: 1800, minPersons: 10, dietaryOptions: ['vegetarian', 'vegan'], isActive: true },
+        { categoryId: cat.id, name: 'Бизнес-ланч', pricePerPerson: 2500, minPersons: 20, dietaryOptions: ['vegetarian'], isActive: true },
+        { categoryId: cat.id, name: 'Гала-ужин', pricePerPerson: 5500, minPersons: 30, dietaryOptions: ['vegetarian'], isActive: true },
+      ],
+    });
 
-  const banquetCat = await prisma.cateringCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Banquet Dinner',
-      description: 'Elegant dinner options',
-      sortOrder: 3,
-      isActive: true,
-    },
-  });
+    // Services: 1 category, several services
+    const svcCat = await prisma.serviceCategory.create({
+      data: { hotelId: hotel.id, name: 'Дополнительные услуги', sortOrder: 1, isActive: true },
+    });
+    await prisma.service.createMany({
+      data: [
+        { categoryId: svcCat.id, name: 'Проектор', pricingType: 'PER_DAY', basePrice: 3000, unit: 'день', isActive: true },
+        { categoryId: svcCat.id, name: 'Экран', pricingType: 'PER_DAY', basePrice: 1500, unit: 'день', isActive: true },
+        { categoryId: svcCat.id, name: 'Микрофон', pricingType: 'PER_DAY', basePrice: 1000, unit: 'день', isActive: true },
+        { categoryId: svcCat.id, name: 'Флористика', pricingType: 'FIXED', basePrice: 15000, unit: 'комплект', isActive: true },
+        { categoryId: svcCat.id, name: 'Трансфер', pricingType: 'PER_PERSON', basePrice: 1500, unit: 'чел.', isActive: true },
+        { categoryId: svcCat.id, name: 'Фотограф', pricingType: 'PER_DAY', basePrice: 25000, unit: 'день', isActive: true },
+      ],
+    });
 
-  console.log('✓ Created catering categories');
+    console.log(`✓ Hotel "${hotel.name}": 4 halls, catering & services created`);
+  }
 
-  // Create catering items
-  await prisma.cateringItem.createMany({
-    data: [
-      {
-        categoryId: coffeeBreakCat.id,
-        name: 'Standard Coffee Break',
-        description: 'Coffee, tea, cookies, and fruit',
-        pricePerPerson: 15,
-        minPersons: 10,
-        dietaryOptions: ['vegetarian'],
-        isActive: true,
+  // ---- Demo bookings in various statuses --------------------------------
+  const allHotels = await prisma.hotel.findMany({ select: { id: true } });
+  const demoStatuses: { status: BookingStatus; price: number }[] = [
+    { status: 'DRAFT', price: 0 },
+    { status: 'PENDING', price: 120000 },
+    { status: 'PENDING', price: 85000 },
+    { status: 'CONFIRMED', price: 240000 },
+    { status: 'CONFIRMED', price: 310000 },
+    { status: 'CANCELLED', price: 60000 },
+  ];
+
+  let idx = 0;
+  for (const s of demoStatuses) {
+    const hotel = allHotels[idx % allHotels.length];
+    const start = new Date();
+    start.setDate(start.getDate() + 14 + idx);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+
+    const booking = await prisma.booking.create({
+      data: {
+        userId: client.id,
+        hotelId: hotel.id,
+        status: s.status,
+        eventName: `Демо-мероприятие №${idx + 1}`,
+        eventFormat: 'Конференция',
+        startDate: start,
+        endDate: end,
+        numGuests: 50 + idx * 20,
+        totalPrice: s.price > 0 ? s.price : null,
+        contactPerson: 'Иван Клиентов',
+        contactPhone: '+7 900 000-00-01',
+        submittedAt: s.status === 'DRAFT' ? null : new Date(),
       },
-      {
-        categoryId: coffeeBreakCat.id,
-        name: 'Premium Coffee Break',
-        description: 'Coffee, tea, pastries, sandwiches, and fresh juice',
-        pricePerPerson: 25,
-        minPersons: 10,
-        dietaryOptions: ['vegetarian', 'vegan_options'],
-        isActive: true,
-      },
-      {
-        categoryId: lunchCat.id,
-        name: 'Business Lunch Buffet',
-        description: 'Hot and cold buffet with salads, main courses, and desserts',
-        pricePerPerson: 45,
-        minPersons: 20,
-        dietaryOptions: ['vegetarian', 'vegan_options', 'gluten_free_options'],
-        isActive: true,
-      },
-      {
-        categoryId: lunchCat.id,
-        name: 'Executive Lunch Menu',
-        description: 'Three-course plated lunch with wine',
-        pricePerPerson: 65,
-        minPersons: 10,
-        dietaryOptions: ['vegetarian', 'vegan_options'],
-        isActive: true,
-      },
-      {
-        categoryId: banquetCat.id,
-        name: 'Gala Dinner',
-        description: 'Five-course dinner with wine pairing',
-        pricePerPerson: 120,
-        minPersons: 30,
-        dietaryOptions: ['vegetarian', 'vegan_options', 'kosher_available'],
-        isActive: true,
-      },
-    ],
-  });
-  console.log('✓ Created catering items');
+    });
 
-  // Create service categories
-  const avCat = await prisma.serviceCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'AV Equipment',
-      description: 'Audio-visual equipment rental',
-      sortOrder: 1,
-      isActive: true,
-    },
-  });
+    // Status history reflecting the path to current status.
+    if (s.status !== 'DRAFT') {
+      await prisma.bookingStatusHistory.create({
+        data: { bookingId: booking.id, fromStatus: 'DRAFT', toStatus: 'PENDING', changedById: client.id, note: 'Отправлена клиентом' },
+      });
+    }
+    if (s.status === 'CONFIRMED' || s.status === 'CANCELLED') {
+      await prisma.bookingStatusHistory.create({
+        data: {
+          bookingId: booking.id,
+          fromStatus: 'PENDING',
+          toStatus: s.status,
+          changedById: manager.id,
+          note: s.status === 'CONFIRMED' ? 'Подтверждено менеджером' : 'Отменено: клиент отказался',
+        },
+      });
+      await prisma.bookingComment.create({
+        data: {
+          bookingId: booking.id,
+          authorId: manager.id,
+          text: s.status === 'CONFIRMED' ? 'Всё согласовано, ждём гостей.' : 'К сожалению, даты заняты.',
+        },
+      });
+    }
+    idx += 1;
+  }
+  console.log(`✓ Created ${demoStatuses.length} demo bookings with status history`);
 
-  const floristCat = await prisma.serviceCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Floristics & Decoration',
-      description: 'Flowers and event decoration',
-      sortOrder: 2,
-      isActive: true,
-    },
-  });
-
-  const transferCat = await prisma.serviceCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Transfer Services',
-      description: 'Transportation for your guests',
-      sortOrder: 3,
-      isActive: true,
-    },
-  });
-
-  const accommodationCat = await prisma.serviceCategory.create({
-    data: {
-      hotelId: hotel.id,
-      name: 'Accommodation',
-      description: 'Hotel rooms for participants',
-      sortOrder: 4,
-      isActive: true,
-    },
-  });
-
-  console.log('✓ Created service categories');
-
-  // Create services
-  await prisma.service.createMany({
-    data: [
-      {
-        categoryId: avCat.id,
-        name: 'Professional Projector',
-        description: '6000 lumens projector with screen',
-        pricingType: 'PER_DAY',
-        basePrice: 250,
-        unit: 'day',
-        isActive: true,
-      },
-      {
-        categoryId: avCat.id,
-        name: 'Wireless Microphone System',
-        description: 'Professional wireless microphone',
-        pricingType: 'PER_DAY',
-        basePrice: 150,
-        unit: 'day',
-        isActive: true,
-      },
-      {
-        categoryId: avCat.id,
-        name: 'Sound System',
-        description: 'Professional PA system',
-        pricingType: 'PER_DAY',
-        basePrice: 500,
-        unit: 'day',
-        isActive: true,
-      },
-      {
-        categoryId: floristCat.id,
-        name: 'Table Centerpieces',
-        description: 'Elegant flower arrangements',
-        pricingType: 'FIXED',
-        basePrice: 50,
-        unit: 'piece',
-        isActive: true,
-      },
-      {
-        categoryId: floristCat.id,
-        name: 'Full Event Decoration',
-        description: 'Complete event decoration package',
-        pricingType: 'FIXED',
-        basePrice: 2000,
-        unit: 'package',
-        isActive: true,
-      },
-      {
-        categoryId: transferCat.id,
-        name: 'Airport Transfer',
-        description: 'Luxury car service from airport',
-        pricingType: 'PER_PERSON',
-        basePrice: 50,
-        unit: 'person',
-        isActive: true,
-      },
-      {
-        categoryId: transferCat.id,
-        name: 'Group Bus Transfer',
-        description: 'Bus rental for group transportation',
-        pricingType: 'PER_DAY',
-        basePrice: 800,
-        unit: 'day',
-        isActive: true,
-      },
-      {
-        categoryId: accommodationCat.id,
-        name: 'Standard Room',
-        description: 'Comfortable single/double room',
-        pricingType: 'PER_DAY',
-        basePrice: 150,
-        unit: 'room/night',
-        isActive: true,
-      },
-      {
-        categoryId: accommodationCat.id,
-        name: 'Executive Suite',
-        description: 'Spacious suite with living area',
-        pricingType: 'PER_DAY',
-        basePrice: 350,
-        unit: 'suite/night',
-        isActive: true,
-      },
-    ],
-  });
-  console.log('✓ Created services');
-
-  console.log('🎉 Database seed completed successfully!');
-  console.log('\n📋 Test Credentials:');
-  console.log('┌─────────────────────────────────────────────────────┐');
-  console.log('│ CLIENT USER:                                        │');
-  console.log('│   Email: client@example.com                         │');
-  console.log('│   Password: password123                             │');
-  console.log('│   Role: CLIENT                                      │');
-  console.log('├─────────────────────────────────────────────────────┤');
-  console.log('│ MANAGER USER:                                       │');
-  console.log('│   Email: manager@example.com                        │');
-  console.log('│   Password: manager123                              │');
-  console.log('│   Role: MANAGER                                     │');
-  console.log('├─────────────────────────────────────────────────────┤');
-  console.log('│ ADMIN USER:                                         │');
-  console.log('│   Email: admin@example.com                          │');
-  console.log('│   Password: admin123                                │');
-  console.log('│   Role: ADMIN                                       │');
-  console.log('└─────────────────────────────────────────────────────┘');
+  console.log('\n🎉 Seed completed!');
+  console.log('Test credentials: client@example.com/password123, manager@example.com/manager123, admin@example.com/admin123');
 }
 
 main()
