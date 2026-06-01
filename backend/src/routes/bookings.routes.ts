@@ -1,36 +1,59 @@
 import { Router } from 'express';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import { createBookingSchema } from '../validators/schemas';
+import {
+  notifyClientSubmitted,
+  notifyManagerNewBooking,
+} from '../services/email.service';
 import { AuthRequest } from '../types';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // Create new booking
-router.post('/', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { hotelId, eventName, eventFormat, startDate, endDate, numGuests, notes } = req.body;
-
-    const booking = await prisma.booking.create({
-      data: {
-        userId: req.user!.id,
+router.post(
+  '/',
+  authenticate,
+  validate(createBookingSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const {
         hotelId,
         eventName,
         eventFormat,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        numGuests: parseInt(numGuests),
+        startDate,
+        endDate,
+        numGuests,
         notes,
-        status: 'DRAFT',
-      },
-    });
+        contactPerson,
+        contactPhone,
+      } = req.body;
 
-    res.status(201).json(booking);
-  } catch (error) {
-    console.error('Create booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+      const booking = await prisma.booking.create({
+        data: {
+          userId: req.user!.id,
+          hotelId,
+          eventName,
+          eventFormat,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          numGuests: parseInt(numGuests),
+          notes,
+          contactPerson: contactPerson || null,
+          contactPhone: contactPhone || null,
+          status: 'DRAFT',
+        },
+      });
+
+      res.status(201).json(booking);
+    } catch (error) {
+      console.error('Create booking error:', error);
+      res.status(500).json({ error: 'Failed to create booking' });
+    }
   }
-});
+);
 
 // Get booking by ID
 router.get('/:id', authenticate, async (req: AuthRequest, res) => {
@@ -362,13 +385,66 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'PENDING',
-        submittedAt: new Date(),
-      },
+    const previousStatus = booking.status;
+
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'PENDING',
+          submittedAt: new Date(),
+        },
+      });
+
+      // Record status transition in history.
+      await tx.bookingStatusHistory.create({
+        data: {
+          bookingId,
+          fromStatus: previousStatus,
+          toStatus: 'PENDING',
+          changedById: req.user!.id,
+          note: 'Заявка отправлена клиентом',
+        },
+      });
+
+      return updated;
     });
+
+    // Fire-and-forget notifications (never block the response).
+    void (async () => {
+      try {
+        const client = await prisma.user.findUnique({
+          where: { id: booking.userId },
+          select: { email: true, firstName: true, lastName: true, companyName: true },
+        });
+        if (client?.email) {
+          await notifyClientSubmitted(client.email, bookingId, booking.eventName);
+        }
+
+        // Notify managers/admins about the new submission.
+        const managers = await prisma.user.findMany({
+          where: { role: { in: ['MANAGER', 'ADMIN'] }, isActive: true },
+          select: { email: true },
+        });
+        const clientName =
+          client?.companyName ||
+          [client?.firstName, client?.lastName].filter(Boolean).join(' ') ||
+          client?.email ||
+          'клиент';
+        for (const m of managers) {
+          if (m.email) {
+            await notifyManagerNewBooking(
+              m.email,
+              clientName,
+              bookingId,
+              booking.eventName
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Submit notification error:', err);
+      }
+    })();
 
     res.json(updatedBooking);
   } catch (error) {

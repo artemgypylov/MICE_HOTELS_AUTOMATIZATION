@@ -10,6 +10,9 @@ import AdminBookingsPage from './pages/AdminBookingsPage';
 import AdminBookingDetailPage from './pages/AdminBookingDetailPage';
 import AdminInventoryPage from './pages/AdminInventoryPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 
 function App() {
   const isAuthenticated = !!localStorage.getItem('token');
@@ -19,6 +22,8 @@ function App() {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route
             path="/wizard/:hotelId"
             element={isAuthenticated ? <WizardPage /> : <Navigate to="/" />}
@@ -73,6 +78,18 @@ function App() {
               isAuthenticated ? (
                 <RoleGuard allowedRoles={['MANAGER', 'ADMIN']}>
                   <AdminDashboardPage />
+                </RoleGuard>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              isAuthenticated ? (
+                <RoleGuard allowedRoles={['ADMIN']}>
+                  <AdminUsersPage />
                 </RoleGuard>
               ) : (
                 <Navigate to="/" />

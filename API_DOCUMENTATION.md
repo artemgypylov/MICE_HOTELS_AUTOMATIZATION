@@ -680,3 +680,77 @@ PER_PERSON  - Price multiplied by number of guests
 PER_DAY     - Price multiplied by number of days
 PER_HOUR    - Price multiplied by hours (assumes 8hr/day)
 ```
+
+---
+
+# Admin MVP Endpoints (Sprint 2 — Booking workflow, content & users)
+
+All `/api/admin/*` endpoints require a Bearer token and role `MANAGER` or `ADMIN`.
+User-management endpoints additionally require role `ADMIN`.
+All POST/PUT/PATCH bodies are validated with Zod; on failure the response is
+`{ "error": "Validation failed", "fields": { "<field>": "<message>" } }` with status 400.
+
+## Bookings workflow
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/admin/bookings` | List bookings (filters: `status`, `dateFrom`, `dateTo`, `search`; pagination: `page`, `limit`) |
+| GET | `/api/admin/bookings/export` | Export bookings as CSV (UTF-8 with BOM) |
+| GET | `/api/admin/bookings/:id` | Booking details (full expand) |
+| PUT | `/api/admin/bookings/:id/status` | Change status `{ status, note? }`. Enforces allowed transitions, records `BookingStatusHistory`, emails the client on CONFIRMED / CANCELLED |
+| GET | `/api/admin/bookings/:id/comments` | List manager comments |
+| POST | `/api/admin/bookings/:id/comment` | Add a comment `{ text }` |
+| GET | `/api/admin/bookings/:id/status-history` | Status change timeline |
+
+**Allowed status transitions:** `DRAFT → PENDING → CONFIRMED | CANCELLED`, and `PENDING | CONFIRMED → CANCELLED`.
+
+## Analytics
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/admin/analytics/overview` | KPIs: totals, revenue, pending, avg value |
+| GET | `/api/admin/analytics/by-hotel` | Bookings & revenue grouped by hotel |
+| GET | `/api/admin/analytics/by-status` | Distribution by status |
+| GET | `/api/admin/analytics/timeline` | Daily bookings & revenue (`dateFrom`, `dateTo`; defaults to last 30 days) |
+
+## Hotels
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/admin/hotels` | List hotels with hall/booking counts |
+| POST | `/api/admin/hotels` | Create hotel |
+| PUT | `/api/admin/hotels/:id` | Update hotel |
+| DELETE | `/api/admin/hotels/:id` | Soft delete (`isActive = false`) |
+| POST | `/api/admin/hotels/:id/upload-photos` | Upload photos (multipart field `photos`, max 10) |
+
+## Halls availability
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/admin/halls/:id/availability` | List unavailability ranges |
+| PUT | `/api/admin/halls/:id/availability` | Add range `{ dateFrom, dateTo, reason? }` |
+| DELETE | `/api/admin/halls/availability/:id` | Remove a range |
+| POST | `/api/admin/halls/:id/upload-photos` | Upload hall photos (appends to `images`) |
+
+## Users (ADMIN only)
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/admin/users` | List users (filters: `role`, `search`) |
+| PATCH | `/api/admin/users/:id/role` | Change role `{ role }` (cannot change own role) |
+| PATCH | `/api/admin/users/:id/status` | Activate/deactivate `{ isActive }` (cannot deactivate self) |
+
+## Uploads
+
+Uploaded images are served statically from `GET /uploads/{hotels|halls|...}/{filename}`.
+Allowed types: JPEG, PNG, WebP. Max size: `MAX_FILE_SIZE` (default 10 MB).
+
+## Email notifications (nodemailer)
+
+Triggered automatically (fire-and-forget; failures never block the request):
+- Client, on **submit** (PENDING): "Заявка получена".
+- Manager(s), on new submission: "Новая заявка".
+- Client, on **CONFIRMED**: "Заявка одобрена" with final price.
+- Client, on **CANCELLED**: "Заявка отклонена" with reason.
+
+If SMTP is not configured the service logs messages instead of sending them.

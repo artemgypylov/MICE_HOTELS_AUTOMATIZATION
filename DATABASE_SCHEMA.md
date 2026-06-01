@@ -445,3 +445,66 @@ ORDER BY h.max_capacity ASC;
 - Separate backup schedules may be appropriate
 
 This schema provides a robust foundation for the MICE hotel booking system with proper normalization, indexing, and data integrity constraints.
+
+---
+
+## Sprint 2 additions (Booking workflow & content management)
+
+### User — new columns
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `is_active` | Boolean | Default `true`; toggled by admin user management |
+| `last_login_at` | DateTime? | Updated on successful login |
+
+### Booking — new columns
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `contact_person` | String? | Event contact name |
+| `contact_phone` | String? | Event contact phone |
+
+(`total_price` and `submitted_at` already existed.)
+
+### `booking_comments` (BookingComment)
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | String (uuid) | PK |
+| `booking_id` | String | FK → bookings (cascade) |
+| `author_id` | String | FK → users (cascade) |
+| `text` | String | Comment body |
+| `created_at` | DateTime | Default now |
+
+### `booking_status_history` (BookingStatusHistory)
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | String (uuid) | PK |
+| `booking_id` | String | FK → bookings (cascade) |
+| `from_status` | BookingStatus? | Previous status (null on first record) |
+| `to_status` | BookingStatus | New status |
+| `changed_by_id` | String | FK → users (cascade) |
+| `note` | String? | Optional reason/comment |
+| `created_at` | DateTime | Default now |
+
+A row is created automatically whenever a booking's status changes (on client
+submit and on admin status change).
+
+### `hall_unavailability` (HallUnavailability)
+
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| `id` | String (uuid) | PK |
+| `hall_id` | String | FK → halls (cascade) |
+| `date_from` | Date | Start of blocked range |
+| `date_to` | Date | End of blocked range |
+| `reason` | String? | Optional reason |
+| `created_at` | DateTime | Default now |
+
+> **Status enum note:** the project uses `BookingStatus { DRAFT, PENDING, CONFIRMED, CANCELLED }`.
+> The Sprint-2 prompt referenced `SUBMITTED/UNDER_REVIEW/APPROVED/REJECTED`; these
+> were intentionally mapped onto the existing enum (`PENDING` = submitted/under review,
+> `CONFIRMED` = approved, `CANCELLED` = rejected) to avoid breaking the existing
+> analytics, UI badges and submit flow. The `note` field on status history captures
+> the finer-grained intent.
