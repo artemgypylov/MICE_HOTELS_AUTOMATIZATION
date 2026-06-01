@@ -66,8 +66,8 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Start server (skip when imported by tests)
-if (process.env.NODE_ENV !== 'test') {
+// Start server only in local/runtime environments, not in tests or Vercel serverless.
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV}`);
